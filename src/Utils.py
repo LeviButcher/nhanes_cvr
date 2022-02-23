@@ -105,3 +105,15 @@ def get_nhanse_mortality_dataset(year_data_files):
     nhanse_data = get_nhanse_data(year_data_files)
     mortality_data = get_mortstat_data(nhanse_years)
     return nhanse_data.join(mortality_data, on="SEQN", how="inner")
+
+# Different meanings of ucod_leading - https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
+# 1 is Diesease of heart
+# 2 is Cerebrovascular Diseases
+
+
+def labelCauseOfDeathAsCVR(ucod_leading):
+    return 1 if ucod_leading == 1 or ucod_leading == 5 else 0
+
+
+def avg(l):
+    return sum(l) / len(l)

@@ -1,0 +1,4 @@
+,model,train_accuracy,train_f1,train_precision,train_recall,test_accuracy,test_f1,test_precision,test_recall
+0,<class 'sklearn.linear_model._logistic.LogisticRegression'>,0.9865744522047224,0.0,0.0,0.0,0.9864930834502793,0.0,0.0,0.0
+1,<class 'sklearn.ensemble._forest.RandomForestClassifier'>,1.0,1.0,1.0,1.0,0.9864931099326121,0.0,0.0,0.0
+2,<class 'sklearn.svm._classes.LinearSVC'>,0.9865744522047224,0.0,0.0,0.0,0.9865744636586127,0.0,0.0,0.0
