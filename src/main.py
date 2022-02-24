@@ -13,8 +13,10 @@ import nhanse_dl
 # [x] Enter all NHANSE Years with correct data files
 # [x] Validate if Dataset is correctly put together
 # [x] Setup X,Y from dataset
-# [] Pull in old nhanse data (Requires mapping two columns together)
-# [] Figure out what models to use in ml pipeline
+# [x] Pull in old nhanse data (Requires mapping two columns together)
+# [] Figure out what models to use in ml pipeline (Need more anomaly detection)
+# [] Add in chart for quick visualizations of methods
+# [] map model class name down to just it actual class name for csv data
 
 # Forget about LDLC for now
 markers = ["TotalChol", "LDL", "HDL", "FBG", "TG", "LDLC"]
@@ -22,23 +24,51 @@ markers = ["TotalChol", "LDL", "HDL", "FBG", "TG", "LDLC"]
 
 NHANSE_DATA_FILES = [
     nhanse_dl.NHANSERequest(
+        (1999, 2000), ["LAB13.XPT", "LAB13AM.XPT", "LAB10AM.XPT", "LAB18.XPT"]),
+    nhanse_dl.NHANSERequest(
+        (2001, 2002), ["L13_B.XPT", "L13AM_B.XPT", "L10AM_B.XPT", "L10_2_B.XPT"]),
+    nhanse_dl.NHANSERequest(
+        (2003, 2004), ["L13_C.XPT", "L13AM_C.XPT", "L10AM_C.XPT"]),
+    nhanse_dl.NHANSERequest(
         (2005, 2006), ["TCHOL_D.XPT", "TRIGLY_D.XPT", "HDL_D.xpt", "GLU_D.xpt"]),
+
     nhanse_dl.NHANSERequest(
-        (2007, 2008), ["TCHOL_E.XPT",
-                       "TRIGLY_E.XPT", "HDL_E.xpt", "GLU_E.xpt"]
-    ),
+        (2007, 2008), ["TCHOL_E.XPT", "TRIGLY_E.XPT", "HDL_E.xpt", "GLU_E.xpt"]),
     nhanse_dl.NHANSERequest(
-        (2009, 2010), ["TCHOL_F.XPT", "TRIGLY_F.XPT", "HDL_F.xpt", "GLU_F.xpt"]),
-    nhanse_dl.NHANSERequest(
-        (2011, 2012), ["TCHOL_G.XPT", "TRIGLY_G.XPT", "HDL_G.xpt", "GLU_G.xpt"])
+        (2009, 2010), ["TCHOL_F.XPT", "TRIGLY_F.XPT", "HDL_F.xpt", "GLU_F.xpt"])
 ]
 # IS Fasting glucose different then glucose
 # All measurements in (mg/dl)
-features_descritions = [("LBXTC", "Total Chol"), ("LBDLDL", "LDL Chol"),
-                        ("LBDHDD", "HDL Chol"), ("LBXGLU", "Fasting Glucose"), ("LBXTR", "Triglyceride")]
-features = [x for x, _ in features_descritions]
+# features_descritions = [("LBXTC", "Total Chol"), ("LBDLDL", "LDL Chol"),
+#                         ("LBDHDD", "HDL Chol"), ("LBXGLU", "Fasting Glucose"), ("LBXTR", "Triglyceride")]
+# features = [x for x, _ in features_descritions]
+
+# Is there a difference in HDL for nhanse data?
+# Fasting Glucose vs Glucose
+
+# | Year  | Total_Chol | LDL_Chol | HDL_Chol | Glucose (FBG) | Triglyceride |
+# | ----  | ---------  | -------- | -------- | ------------- | ------------ |
+# | 99-00 |      LBXTC | LBDLDL   | LBDHDL   | LBXSGL        | LBXTR        |
+# | 01-02 |      LBXTC | LBDLDL   | LBDHDL   | LB2GLU        | LBXTR        |
+# | 03-04 |      LBXTC | LBDLDL   | LBXHDD   | LBXGLU        | LBXTR        |
+# | 05-06 |      LBXTC | LBDLDL   | LBDHDD   | LBXGLU        | LBXTR        |
+# | 07-08 |      LBXTC | LBDLDL   | LBDHDD   | LBXGLU        | LBXTR        |
+# | 09-10 |      LBXTC | LBDLDL   | LBDHDD   | LBXGLU        | LBXTR        |
+
+combine_directions = [
+    (["LBXTC"], "Total_Chol"),  # VALID MAP
+    (["LBDLDL"], "LDL"),
+    (["LBDHDL", "LBXHDD", "LBDHDD"], "HDL"),
+    (["LBXSGL", "LB2GLU", "LBXGLU"], "FBG"),
+    (["LBXTR"], "TG"),
+    (["UCOD_LEADING"], "UCOD_LEADING")]
+
+features = [x for _, x in combine_directions]
+
 
 dataset = nhanse_dl.get_nhanse_mortality_dataset(NHANSE_DATA_FILES)
+
+dataset = utils.combine_df_columns(combine_directions, dataset)
 
 
 # Strategy For NHANSE data
