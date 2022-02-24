@@ -1,3 +1,8 @@
+import functools
+from typing import List, Tuple
+import pandas as pd
+
+
 def toUpperCase(l):
     return list(map(lambda l: l.upper(), l))
 
@@ -15,3 +20,17 @@ def labelCauseOfDeathAsCVR(ucod_leading):
 
 def avg(l):
     return sum(l) / len(l)
+
+
+CombineDirections = Tuple[List[str], str]
+
+
+def combine_df_columns(combine_directions: List[CombineDirections], x: pd.DataFrame) -> pd.DataFrame:
+    def combine(x: pd.DataFrame, d: CombineDirections):
+        cols, target = d
+        series = x.loc[:, cols].sum(axis=1)
+        return pd.DataFrame(series, columns=[target])
+
+    res = [combine(x, d) for d in combine_directions]
+
+    return pd.concat(res, axis=1)

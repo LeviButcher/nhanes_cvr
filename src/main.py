@@ -47,7 +47,6 @@ dataset = nhanse_dl.get_nhanse_mortality_dataset(NHANSE_DATA_FILES)
 # Merge columns together that mean the same thing
 
 
-# print(dataset.columns)
 X = dataset.loc[:, features].assign(
     CVR=dataset.UCOD_LEADING.apply(utils.labelCauseOfDeathAsCVR)).dropna()
 Y = X.CVR

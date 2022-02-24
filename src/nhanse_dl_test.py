@@ -2,6 +2,7 @@ from pickle import TRUE
 import pandas as pd
 import numpy as np
 import nhanse_dl
+import utils
 
 
 def test_check_null_addition():
@@ -68,3 +69,21 @@ def test_get_mortality_data():
     res = nhanse_dl.get_mortstat_data(nhanse_requests)
 
     assert len(res) != 0
+
+# pytest -k test_combine_df_columns
+
+
+def test_combine_df_columns():
+    # o should have only the columns passed in
+
+    a = pd.DataFrame(
+        {"seqn": np.arange(10), "A": np.arange(10), "B": np.arange(10), "C": np.arange(10)}).set_index("seqn")
+
+    combine_directions = [(["A", "B", "C"], "D"), (["A", "A"], "E")]
+    o_cols = [x[1] for x in combine_directions]
+
+    o = utils.combine_df_columns(combine_directions, a)
+
+    assert all(o.columns == o_cols)
+    assert o.D.sum() == (a.A + a.B + a.C).sum()
+    assert o.E.sum() == (a.A + a.A).sum()
