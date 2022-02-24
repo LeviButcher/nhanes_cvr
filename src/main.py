@@ -1,10 +1,10 @@
-from distutils.file_util import write_file
 import pandas as pd
-from sklearn import ensemble, model_selection, svm
-from sklearn.model_selection import train_test_split
+from sklearn import ensemble, model_selection, neighbors, neural_network, svm
 import utils
 from sklearn import linear_model
 import nhanse_dl
+import matplotlib.pyplot as plt
+
 
 # TODO
 # [x] Need to convert mortstat data to correct data types INT
@@ -14,13 +14,63 @@ import nhanse_dl
 # [x] Validate if Dataset is correctly put together
 # [x] Setup X,Y from dataset
 # [x] Pull in old nhanse data (Requires mapping two columns together)
-# [] Figure out what models to use in ml pipeline (Need more anomaly detection)
-# [] Add in chart for quick visualizations of methods
-# [] map model class name down to just it actual class name for csv data
+# [x] map model class name down to just it actual class name for csv data
+# [x] Add in chart for quick visualizations of methods
+# [x] Figure out what models to use in ml pipeline (Need more anomaly detection)
+# [] Add caching of nhanse data files
+# [] Perform pca then plot PC1 vs PC2 and highlight samples that are positive for CVR
+# [] Check the HDL and Glucose features used are actually the same
 
-# Forget about LDLC for now
-markers = ["TotalChol", "LDL", "HDL", "FBG", "TG", "LDLC"]
 
+def train_model(model, X, y, n_folds, scoring):
+    cv = model_selection.StratifiedKFold(
+        n_folds, shuffle=True, random_state=42)
+    res = model_selection.cross_validate(
+        model, X, y, cv=cv, scoring=scoring, return_train_score=True)
+
+    return model, res
+
+
+def transform_to_csv_data(modelRes):
+    m, res = modelRes
+    scores = [utils.avg(res[x]) for x in scoring_res]
+    return [m.__class__.__name__] + scores
+
+
+def run_ml_pipeline(folds, X, Y, scoring, models):
+    for k in folds:
+        print(f"Running {k}fold")
+        modelRes = [train_model(m, X, Y, k, scoring) for m in models]
+        csv_data = [transform_to_csv_data(x) for x in modelRes]
+
+        csv_dataframe = pd.DataFrame(
+            csv_data, columns=csv_columns)
+
+        x = csv_dataframe.model
+        y = csv_dataframe.test_f1
+        plt.bar(x, y)
+        plt.xticks(x, rotation=-15, fontsize="x-small")
+        plt.xlabel("Model")
+        plt.ylabel("Test F1 Score")
+        plt.savefig(f"../data/{k}fold_model_plot_results.png")
+        plt.close()
+
+        csv_dataframe.to_csv(f"../data/{k}fold_model_results.csv")
+
+
+# CONFIGURATION VARIABLES
+scoring = ["accuracy", "f1", "precision", "recall"]
+scoring_types = ["train", "test"]
+scoring_res = [f"{x}_{y}" for x in scoring_types for y in scoring]
+csv_columns = ["model"] + scoring_res
+folds = [2, 4, 5]
+models = [
+    linear_model.LogisticRegression(),
+    linear_model.RidgeClassifier(),
+    ensemble.RandomForestClassifier(),
+    neighbors.KNeighborsClassifier(),
+    neural_network.MLPClassifier()
+]
 
 NHANSE_DATA_FILES = [
     nhanse_dl.NHANSERequest(
@@ -37,11 +87,11 @@ NHANSE_DATA_FILES = [
     nhanse_dl.NHANSERequest(
         (2009, 2010), ["TCHOL_F.XPT", "TRIGLY_F.XPT", "HDL_F.xpt", "GLU_F.xpt"])
 ]
+
 # IS Fasting glucose different then glucose
 # All measurements in (mg/dl)
 # features_descritions = [("LBXTC", "Total Chol"), ("LBDLDL", "LDL Chol"),
 #                         ("LBDHDD", "HDL Chol"), ("LBXGLU", "Fasting Glucose"), ("LBXTR", "Triglyceride")]
-# features = [x for x, _ in features_descritions]
 
 # Is there a difference in HDL for nhanse data?
 # Fasting Glucose vs Glucose
@@ -55,6 +105,8 @@ NHANSE_DATA_FILES = [
 # | 07-08 |      LBXTC | LBDLDL   | LBDHDD   | LBXGLU        | LBXTR        |
 # | 09-10 |      LBXTC | LBDLDL   | LBDHDD   | LBXGLU        | LBXTR        |
 
+# NOTE: NHANSE dataset early on had different variables names for some features
+# combine directions is used to combine these features into a single feature
 combine_directions = [
     (["LBXTC"], "Total_Chol"),  # VALID MAP
     (["LBDLDL"], "LDL"),
@@ -63,18 +115,11 @@ combine_directions = [
     (["LBXTR"], "TG"),
     (["UCOD_LEADING"], "UCOD_LEADING")]
 
+
+# DATASET LOADING
 features = [x for _, x in combine_directions]
-
-
-dataset = nhanse_dl.get_nhanse_mortality_dataset(NHANSE_DATA_FILES)
-
-dataset = utils.combine_df_columns(combine_directions, dataset)
-
-
-# Strategy For NHANSE data
-# Download each NHANSE Year and it's associated files
-# Combine all nhanse years together, adding nulls to missing columns
-# Merge columns together that mean the same thing
+nhanse_dataset = nhanse_dl.get_nhanse_mortality_dataset(NHANSE_DATA_FILES)
+dataset = utils.combine_df_columns(combine_directions, nhanse_dataset)
 
 
 X = dataset.loc[:, features].assign(
@@ -82,41 +127,11 @@ X = dataset.loc[:, features].assign(
 Y = X.CVR
 X = X.loc[:, features]
 
+X = (X - X.min()) / (X.max() - X.min())  # Mean Normalization
+
 print(f"Dataset Size: {X.shape}")
 print(f"True Sample Count: {Y.sum()}")
 print(f"True Sample Percentage: {Y.sum() / X.shape[0]}%")
 
-
-def train_model(model, X, y, n_folds, scoring):
-    cv = model_selection.StratifiedKFold(
-        n_folds, shuffle=True, random_state=42)
-    res = model_selection.cross_validate(
-        model, X, y, cv=cv, scoring=scoring, return_train_score=True)
-
-    return model, res
-
-
-def transformToCSVData(modelRes):
-    m, res = modelRes
-    scores = [utils.avg(res[x]) for x in scoring_res]
-    return [m.__class__] + scores
-
-
-scoring = ["accuracy", "f1", "precision", "recall"]
-scoring_types = ["train", "test"]
-scoring_res = [f"{x}_{y}" for x in scoring_types for y in scoring]
-csvColumns = ["model"] + scoring_res
-folds = [2, 4, 5]
-models = [
-    linear_model.LogisticRegression(),
-    ensemble.RandomForestClassifier(),
-    svm.LinearSVC()]
-
-for k in folds:
-    modelRes = [train_model(m, X, Y, k, scoring) for m in models]
-    csvData = [transformToCSVData(x) for x in modelRes]
-
-    csvDataframe = pd.DataFrame(
-        csvData, columns=csvColumns)
-
-    csvDataframe.to_csv(f"../data/{k}fold_model_results.csv")
+# RUN PIPELINE
+run_ml_pipeline(folds, X, Y, scoring, models)

@@ -1,6 +1,6 @@
-import functools
 from typing import List, Tuple
 import pandas as pd
+import re
 
 
 def toUpperCase(l):
