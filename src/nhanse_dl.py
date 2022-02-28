@@ -58,7 +58,7 @@ def read_mortstat(location: str) -> pd.DataFrame:
 
     # Convert data to correct types
     # https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
-    data.SEQN = pd.to_numeric(data.SEQN, errors="coerce", downcast="float")
+    data.SEQN = pd.to_numeric(data.SEQN, errors="coerce", downcast="integer")
     data.MORTSTAT = pd.to_numeric(
         data.MORTSTAT, errors="coerce")
     data.DIABETES = pd.to_numeric(
@@ -109,7 +109,10 @@ def build_nhanse_url(year: Tuple[int, int], data_file: str) -> str:
 def read_nhanse_data(location: str) -> pd.DataFrame:
     # location = PATH | URL
 
-    return pd.read_sas(location).set_index('SEQN')
+    df = pd.read_sas(location)
+    df = df.astype({'SEQN': 'int64'})
+
+    return df.set_index('SEQN')
 
 
 def get_nhanse_mortality_dataset(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:

@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from sklearn import linear_model, model_selection, utils
 
+# TODO WRITE TESTS FOR THIS
+
 # New Plan: Need to make two custom classes
 # BalancedKFold - balance dataset into equal class 50/50 then performs k-fold
 # RepeatedBalancedKFold - Performs balancedkfold n many times
@@ -18,9 +20,10 @@ def balanceDataset(X, y, random_state):
     falseSet = X.loc[y == 0, :].sample(
         n=trueCount, random_state=random_state).index
 
-    indexes = np.concatenate((trueSet._values, falseSet._values))
+    xSet = pd.concat([X.loc[falseSet, :], X.loc[trueSet, :]])
+    ySet = pd.concat([y.loc[falseSet], y.loc[trueSet]])
 
-    return X.iloc[indexes, :], y.iloc[indexes]
+    return xSet, ySet
 
 
 class BalancedKFold(model_selection.KFold):
@@ -28,10 +31,10 @@ class BalancedKFold(model_selection.KFold):
     def __init__(self, n_splits=5, *, shuffle=False, random_state=None):
         super().__init__(n_splits, shuffle=shuffle, random_state=random_state)
 
-    def split(self, X, y=None, groups=None):
-        X, y = balanceDataset(X, y, self.random_state)
+    def split(self, X, y, groups=None):
+        bX, by = balanceDataset(X, y, self.random_state)
 
-        return super().split(X, y, groups)
+        return super().split(bX, by, groups)
 
 
 class RepeatedBalancedKFold(model_selection.RepeatedKFold):
@@ -40,14 +43,13 @@ class RepeatedBalancedKFold(model_selection.RepeatedKFold):
             BalancedKFold, n_repeats=n_repeats, random_state=random_state, n_splits=n_splits)
 
 
-m = linear_model.LinearRegression()
-X = pd.DataFrame(np.random.rand(10, 10))
-# y = np.random.randint(2, size=10)
-y = pd.Series([0, 0, 0, 0, 0, 0, 1, 1, 1, 1])
+# X = pd.DataFrame(np.random.rand(100, 100))
+# Y = pd.Series(np.repeat([0, 0, 0, 1, 1], 20))
 
 
-cv = BalancedKFold()
+# cv = BalancedKFold(n_splits=10, shuffle=True, random_state=42)
 
-res = model_selection.cross_validate(m, X, y, cv=cv, return_train_score=True)
-
-print(res)
+# for train, test in cv.split(X, Y):
+#     x = X.iloc[train, :]
+#     y = Y.iloc[train]
+#     print(x.shape)
