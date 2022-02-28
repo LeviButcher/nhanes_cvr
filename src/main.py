@@ -40,37 +40,47 @@ def transform_to_csv_data(modelRes):
     return [get_class_name(m)] + scores
 
 
-def run_ml_pipeline(folding_strats, X, Y, scoring, models, name):
-    for cv in folding_strats:
-        stratName = get_class_name(cv)
-        k = cv.get_n_splits()
-        resDir = f"../results/{name}_{k}_{stratName}"
-        try:
-            os.mkdir(resDir)
-        except:
-            pass
+def run_ml_pipeline(folding_strats, X, Y, scoring, models, normalizers):
+    for normalizer in normalizers:
+        normName = get_class_name(normalizer) if normalizer else "Normal"
 
-        print(f"Running {stratName} folding: {k}")
+        for cv in folding_strats:
+            stratName = get_class_name(cv)
+            k = cv.get_n_splits()
+            fullName = f"{normName}_{k}_{stratName}"
+            resDir = f"../results/{fullName}"
 
-        modelRes = [train_model(m, X, Y, cv, scoring) for m in models]
-        csv_data = [transform_to_csv_data(x) for x in modelRes]
+            try:
+                os.mkdir(resDir)
+            except:
+                pass
 
-        csv_dataframe = pd.DataFrame(
-            csv_data, columns=csv_columns)
+            print(f"Running {fullName}")
 
-        x = csv_dataframe.model
-        y = csv_dataframe.test_f1
-        plt.bar(x, y)
-        plt.xticks(x, rotation=-15, fontsize="x-small")
-        plt.xlabel("Model")
-        plt.ylabel("Test F1 Score")
-        plt.title(resDir)
-        plt.savefig(
-            f"{resDir}/{name}_{k}_{stratName}_model_plot_results.png")
-        plt.close()
+            X[:] = normalizer.fit_transform(
+                X, Y) if normalizer else X  # Scale X
+            plot_pca(X, Y, f"../results/{normName}_pca.png")
 
-        csv_dataframe.to_csv(
-            f"{resDir}/{name}_{k}_{stratName}_model_results.csv")
+            modelRes = [train_model(m, X, Y, cv, scoring) for m in models]
+            csv_data = [transform_to_csv_data(x) for x in modelRes]
+
+            csv_dataframe = pd.DataFrame(
+                csv_data, columns=csv_columns)
+
+            x = csv_dataframe.model
+            y = csv_dataframe.test_f1
+
+            plt.bar(x, y)
+            plt.xticks(x, rotation=-15, fontsize="x-small")
+            plt.xlabel("Model")
+            plt.ylabel("Test F1 Score")
+            plt.title(fullName)
+            plt.savefig(
+                f"{resDir}/{fullName}_model_plot_results.png")
+            plt.close()
+
+            csv_dataframe.to_csv(
+                f"{resDir}/{fullName}_model_results.csv")
 
 
 def plot_pca(X, Y, location):
@@ -92,9 +102,10 @@ random_state = 42
 folds = 10
 fold_repeats = 10
 folding_strats = [
-    # model_selection.StratifiedKFold(n_splits=folds, shuffle=True, random_state=random_state),
+    model_selection.StratifiedKFold(
+        n_splits=folds, shuffle=True, random_state=random_state),
     BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
-    # RepeatedBalancedKFold(n_splits=folds)
+    RepeatedBalancedKFold(n_splits=folds)
 ]
 
 
@@ -109,8 +120,12 @@ models = [
     neural_network.MLPClassifier()
 ]
 
+
 normalizers = [
-    preprocessing.MinMaxScaler()
+    None,
+    preprocessing.MinMaxScaler(),
+    preprocessing.Normalizer(),
+    preprocessing.StandardScaler()
 ]
 
 NHANSE_DATA_FILES = [
@@ -168,20 +183,13 @@ X = dataset.loc[:, features].assign(
 Y = X.CVR
 X = X.loc[:, features]
 
-plot_pca(X, Y, "../results/normal_pca.png")
-
-
 print(f"Dataset Size: {X.shape}")
 print(f"True Sample Count: {Y.sum()}")
 print(f"True Sample Percentage: {Y.sum() / X.shape[0] * 100}%")
 
 # RUN PIPELINE
-run_ml_pipeline(folding_strats, X, Y, scoring, models, "normal")
+run_ml_pipeline(folding_strats, X, Y, scoring, models, normalizers)
 
-X = (X - X.min()) / (X.max() - X.min())  # Min_Max Normalization
-plot_pca(X, Y, "../results/mean_norm_pca.png")
-
-run_ml_pipeline(folding_strats, X, Y, scoring, models, "min_max_norm")
 
 # TrainY TrueCount: 1007
 # TestY TrueCount: 112
