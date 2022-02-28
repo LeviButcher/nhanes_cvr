@@ -83,6 +83,7 @@ def get_mortstat_data(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:
 
 def get_nhanse_data(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:
     data = []
+
     for x in nhanse_requests:
         year, data_files = x.year, x.files
         data.append([(year, read_nhanse_data(build_nhanse_url(year, f)))
@@ -107,11 +108,11 @@ def build_nhanse_url(year: Tuple[int, int], data_file: str) -> str:
 
 def read_nhanse_data(location: str) -> pd.DataFrame:
     # location = PATH | URL
+
     return pd.read_sas(location).set_index('SEQN')
 
 
 def get_nhanse_mortality_dataset(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:
-
     nhanse_data = get_nhanse_data(nhanse_requests)
     mortality_data = get_mortstat_data(nhanse_requests)
     return nhanse_data.join(mortality_data, on="SEQN", how="inner")

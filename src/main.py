@@ -1,5 +1,6 @@
 import pandas as pd
-from sklearn import ensemble, model_selection, neighbors, neural_network, svm
+from sklearn import ensemble, model_selection, neighbors, neural_network, decomposition
+from BalancedKFold import BalancedKFold
 import utils
 from sklearn import linear_model
 import nhanse_dl
@@ -21,10 +22,14 @@ import matplotlib.pyplot as plt
 # [] Perform pca then plot PC1 vs PC2 and highlight samples that are positive for CVR
 # [] Check the HDL and Glucose features used are actually the same
 
+def get_class_name(x):
+    return x.__class__.__name__
 
-def train_model(model, X, y, n_folds, scoring):
-    cv = model_selection.StratifiedKFold(
-        n_folds, shuffle=True, random_state=42)
+
+def train_model(model, X, y, cv, scoring):
+    # cv = model_selection.RepeatedStratifiedKFold(
+    #     n_splits=n_splits, random_state=42)
+
     res = model_selection.cross_validate(
         model, X, y, cv=cv, scoring=scoring, return_train_score=True)
 
@@ -34,13 +39,16 @@ def train_model(model, X, y, n_folds, scoring):
 def transform_to_csv_data(modelRes):
     m, res = modelRes
     scores = [utils.avg(res[x]) for x in scoring_res]
-    return [m.__class__.__name__] + scores
+    return [get_class_name(m)] + scores
 
 
-def run_ml_pipeline(folds, X, Y, scoring, models):
-    for k in folds:
-        print(f"Running {k}fold")
-        modelRes = [train_model(m, X, Y, k, scoring) for m in models]
+def run_ml_pipeline(folding_strats, X, Y, scoring, models, name):
+    for cv in folding_strats:
+        stratName = get_class_name(cv)
+        k = cv.n_splits
+        print(f"Running {stratName} folding: {k}")
+
+        modelRes = [train_model(m, X, Y, cv, scoring) for m in models]
         csv_data = [transform_to_csv_data(x) for x in modelRes]
 
         csv_dataframe = pd.DataFrame(
@@ -52,10 +60,20 @@ def run_ml_pipeline(folds, X, Y, scoring, models):
         plt.xticks(x, rotation=-15, fontsize="x-small")
         plt.xlabel("Model")
         plt.ylabel("Test F1 Score")
-        plt.savefig(f"../data/{k}fold_model_plot_results.png")
+        plt.savefig(f"../data/{name}_{k}_{stratName}_model_plot_results.png")
         plt.close()
 
-        csv_dataframe.to_csv(f"../data/{k}fold_model_results.csv")
+        csv_dataframe.to_csv(
+            f"../data/{name}_{k}_{stratName}_model_results.csv")
+
+
+def plot_pca(X, Y, location):
+    X_pca = decomposition.PCA().fit_transform(X)
+    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=Y)
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.savefig(location)
+    plt.close()
 
 
 # CONFIGURATION VARIABLES
@@ -63,7 +81,16 @@ scoring = ["accuracy", "f1", "precision", "recall"]
 scoring_types = ["train", "test"]
 scoring_res = [f"{x}_{y}" for x in scoring_types for y in scoring]
 csv_columns = ["model"] + scoring_res
-folds = [2, 4, 5]
+random_state = 42
+folds = 10
+fold_repeats = 10
+folding_strats = [
+    # model_selection.StratifiedKFold(
+    # n_splits=folds, shuffle=True, random_state=random_state),
+    BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state)
+]
+
+
 models = [
     linear_model.LogisticRegression(),
     linear_model.RidgeClassifier(),
@@ -121,17 +148,38 @@ features = [x for _, x in combine_directions]
 nhanse_dataset = nhanse_dl.get_nhanse_mortality_dataset(NHANSE_DATA_FILES)
 dataset = utils.combine_df_columns(combine_directions, nhanse_dataset)
 
-
+# DATASET TRANSFORMATION
 X = dataset.loc[:, features].assign(
     CVR=dataset.UCOD_LEADING.apply(utils.labelCauseOfDeathAsCVR)).dropna()
 Y = X.CVR
 X = X.loc[:, features]
 
-X = (X - X.min()) / (X.max() - X.min())  # Mean Normalization
+# skf = model_selection.StratifiedKFold(n_splits=10)
+
+# for train_index, test_index in skf.split(X, Y):
+#     train_y = Y.iloc[train_index]
+#     test_y = Y.iloc[test_index]
+
+#     print(f"TrainY TrueCount: {(train_y == 1).sum()}")
+#     print(f"TrainY FalseCount: {(train_y == 0).sum()}")
+#     print(f"TestY TrueCount: {(test_y == 1).sum()}")
+#     print(f"TestY FalseCount: {(test_y == 0).sum()}")
+
+
+plot_pca(X, Y, "../data/normal_pca.png")
+
 
 print(f"Dataset Size: {X.shape}")
 print(f"True Sample Count: {Y.sum()}")
-print(f"True Sample Percentage: {Y.sum() / X.shape[0]}%")
+print(f"True Sample Percentage: {Y.sum() / X.shape[0] * 100}%")
 
 # RUN PIPELINE
-run_ml_pipeline(folds, X, Y, scoring, models)
+run_ml_pipeline(folding_strats, X, Y, scoring, models, "normal")
+
+X = (X - X.min()) / (X.max() - X.min())  # Min_Max Normalization
+plot_pca(X, Y, "../data/mean_norm_pca.png")
+
+run_ml_pipeline(folding_strats, X, Y, scoring, models, "min_max_norm")
+
+# TrainY TrueCount: 1007
+# TestY TrueCount: 112
