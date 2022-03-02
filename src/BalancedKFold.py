@@ -1,12 +1,5 @@
-import numpy as np
 import pandas as pd
-from sklearn import linear_model, model_selection, utils
-
-# TODO WRITE TESTS FOR THIS
-
-# New Plan: Need to make two custom classes
-# BalancedKFold - balance dataset into equal class 50/50 then performs k-fold
-# RepeatedBalancedKFold - Performs balancedkfold n many times
+from sklearn import model_selection
 
 
 def balanceDataset(X, y, random_state):
@@ -41,15 +34,3 @@ class RepeatedBalancedKFold(model_selection.RepeatedKFold):
     def __init__(self, *, n_splits=5, n_repeats=10, random_state=None):
         super(model_selection.RepeatedKFold, self).__init__(
             BalancedKFold, n_repeats=n_repeats, random_state=random_state, n_splits=n_splits)
-
-
-# X = pd.DataFrame(np.random.rand(100, 100))
-# Y = pd.Series(np.repeat([0, 0, 0, 1, 1], 20))
-
-
-# cv = BalancedKFold(n_splits=10, shuffle=True, random_state=42)
-
-# for train, test in cv.split(X, Y):
-#     x = X.iloc[train, :]
-#     y = Y.iloc[train]
-#     print(x.shape)

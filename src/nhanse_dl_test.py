@@ -1,4 +1,3 @@
-from pickle import TRUE
 import pandas as pd
 import numpy as np
 import nhanse_dl
