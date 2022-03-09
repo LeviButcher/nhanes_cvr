@@ -1,11 +1,10 @@
-import os
-import pandas as pd
-from sklearn import ensemble, model_selection, neighbors, neural_network, decomposition, preprocessing
+from sklearn import ensemble, model_selection, neighbors, neural_network, decomposition, preprocessing, svm, linear_model
 from BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 import utils
-from sklearn import linear_model
 import nhanse_dl
-import matplotlib.pyplot as plt
+from ml_pipeline import run_ml_pipeline
+from matplotlib import pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 
 # TODO
@@ -21,75 +20,9 @@ import matplotlib.pyplot as plt
 # [x] Figure out what models to use in ml pipeline (Need more anomaly detection)
 # [x] Perform pca then plot PC1 vs PC2 and highlight samples that are positive for CVR
 # [] Add caching of nhanse data files
+# [] Add GridSearch to ml_pipeline
 # [] Check the HDL and Glucose features used are actually the same
-
-def get_class_name(x):
-    return x.__class__.__name__
-
-
-def train_model(model, X, y, cv, scoring):
-    res = model_selection.cross_validate(
-        model, X, y, cv=cv, scoring=scoring, return_train_score=True)
-
-    return model, res
-
-
-def transform_to_csv_data(modelRes):
-    m, res = modelRes
-    scores = [utils.avg(res[x]) for x in scoring_res]
-    return [get_class_name(m)] + scores
-
-
-def run_ml_pipeline(folding_strats, X, Y, scoring, models, normalizers):
-    for normalizer in normalizers:
-        normName = get_class_name(normalizer) if normalizer else "Normal"
-
-        for cv in folding_strats:
-            stratName = get_class_name(cv)
-            k = cv.get_n_splits()
-            fullName = f"{normName}_{k}_{stratName}"
-            resDir = f"../results/{fullName}"
-
-            try:
-                os.mkdir(resDir)
-            except:
-                pass
-
-            print(f"Running {fullName}")
-
-            X[:] = normalizer.fit_transform(
-                X, Y) if normalizer else X  # Scale X
-            plot_pca(X, Y, f"../results/{normName}_pca.png")
-
-            modelRes = [train_model(m, X, Y, cv, scoring) for m in models]
-            csv_data = [transform_to_csv_data(x) for x in modelRes]
-
-            csv_dataframe = pd.DataFrame(
-                csv_data, columns=csv_columns)
-
-            x = csv_dataframe.model
-            y = csv_dataframe.test_f1
-
-            plt.bar(x, y)
-            plt.xticks(x, rotation=-15, fontsize="x-small")
-            plt.xlabel("Model")
-            plt.ylabel("Test F1 Score")
-            plt.title(fullName)
-            plt.savefig(
-                f"{resDir}/{fullName}_model_plot_results.png")
-            plt.close()
-
-            csv_dataframe.to_csv(
-                f"{resDir}/{fullName}_model_results.csv")
-
-
-def plot_pca(X, Y, location):
-    X_pca = decomposition.PCA().fit_transform(X)
-    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=Y)
-    plt.xlabel("PC1")
-    plt.ylabel("PC2")
-    plt.savefig(location)
-    plt.close()
+# [] Add threaded processes to ml_pipeline
 
 
 # CONFIGURATION VARIABLES
@@ -105,19 +38,21 @@ folding_strats = [
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=random_state),
     BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
-    RepeatedBalancedKFold(n_splits=folds)
+    # RepeatedBalancedKFold(n_splits=folds)
 ]
 
 
 models = [
     linear_model.LogisticRegression(
-        solver="saga", max_iter=100, penalty='l2', random_state=random_state),
+        solver="lbfgs", max_iter=100, penalty='l2', random_state=random_state),
     linear_model.SGDClassifier(
         loss='perceptron', penalty='l1', shuffle=True, random_state=True),
     linear_model.RidgeClassifier(solver='sag'),
     ensemble.RandomForestClassifier(),
     neighbors.KNeighborsClassifier(),
-    neural_network.MLPClassifier()
+    neural_network.MLPClassifier(),
+    svm.LinearSVC(),
+    svm.OneClassSVM()
 ]
 
 
@@ -175,6 +110,12 @@ combine_directions = [
 # DATASET LOADING
 features = [x for _, x in combine_directions]
 nhanse_dataset = nhanse_dl.get_nhanse_mortality_dataset(NHANSE_DATA_FILES)
+
+print(f"True Diabetes: {(nhanse_dataset.DIABETES == 1).sum()}")
+print(f"True HyperTen: {(nhanse_dataset.HYPERTEN == 1).sum()}")
+
+print(nhanse_dataset.UCOD_LEADING.value_counts())
+
 dataset = utils.combine_df_columns(combine_directions, nhanse_dataset)
 
 # DATASET TRANSFORMATION
@@ -188,8 +129,49 @@ print(f"True Sample Count: {Y.sum()}")
 print(f"True Sample Percentage: {Y.sum() / X.shape[0] * 100}%")
 
 # RUN PIPELINE
-run_ml_pipeline(folding_strats, X, Y, scoring, models, normalizers)
+res = run_ml_pipeline(folding_strats, X, Y, scoring, models,
+                      normalizers, csv_columns, scoring_res)
 
+res.to_csv('../results/all_results.csv')
 
-# TrainY TrueCount: 1007
-# TestY TrueCount: 112
+# Group Fold Results into Plot
+for foldName, data in res.groupby(['foldingStrat']):
+    plt.title(foldName)
+    for normName, data2 in data.groupby(['normalizer']):
+        f1 = data2.test_f1
+        models = data2.model
+        norms = data2.normalizer
+        # encodedNorms = preprocessing.LabelEncoder().fit_transform(norms)
+
+        plt.scatter(models, f1, label=normName)
+    plt.xticks(models, rotation=-15, fontsize="x-small")
+    plt.xlabel("Models")
+    plt.ylabel("F1")
+    plt.legend(loc="best")
+    plt.savefig(f"../results/{foldName}_plot.png")
+    plt.close()
+
+# Display All Results in 3d plot
+fig = plt.figure(figsize=(10, 10))
+ax = fig.add_subplot(111, projection='3d')
+normEncoder = preprocessing.LabelEncoder()
+modelEncoder = preprocessing.LabelEncoder()
+res = res.assign(normalizer_enc=normEncoder.fit_transform(res.normalizer),
+                 model_enc=modelEncoder.fit_transform(res.model))
+
+for foldName, data in res.groupby(['foldingStrat']):
+    f1 = data.test_f1
+    models = data.model_enc
+    norms = data.normalizer_enc
+
+    ax.scatter(models, norms, f1, label=foldName)
+
+plt.xticks(res.model_enc, modelEncoder.inverse_transform(res.model_enc))
+plt.yticks(res.normalizer_enc,
+           normEncoder.inverse_transform(res.normalizer_enc))
+plt.xlabel("Models")
+plt.ylabel("Normalizations")
+plt.zlabel("F1")
+plt.legend(loc="best")
+plt.savefig(f"../results/all_results_3d_plot.png")
+plt.close()

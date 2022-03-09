@@ -1,6 +1,5 @@
 from typing import List, Tuple
 import pandas as pd
-import re
 
 
 def toUpperCase(l):
@@ -16,10 +15,6 @@ def labelCauseOfDeathAsCVR(ucod_leading):
     # 1 is Diesease of heart
     # 2 is Cerebrovascular Diseases
     return 1 if ucod_leading == 1 or ucod_leading == 5 else 0
-
-
-def avg(l):
-    return sum(l) / len(l)
 
 
 CombineDirections = Tuple[List[str], str]
