@@ -3,33 +3,14 @@ from BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 import utils
 import nhanse_dl
 from ml_pipeline import run_ml_pipeline
-from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-
-
-# TODO
-# [x] Need to convert mortstat data to correct data types INT
-# [x] Figure out how to Combining NHANSE data
-# [x] Check what the 6 lab measurements were and find there nhanse files
-# [x] Enter all NHANSE Years with correct data files
-# [x] Validate if Dataset is correctly put together
-# [x] Setup X,Y from dataset
-# [x] Pull in old nhanse data (Requires mapping two columns together)
-# [x] map model class name down to just it actual class name for csv data
-# [x] Add in chart for quick visualizations of methods
-# [x] Figure out what models to use in ml pipeline (Need more anomaly detection)
-# [x] Perform pca then plot PC1 vs PC2 and highlight samples that are positive for CVR
-# [] Add caching of nhanse data files
-# [] Add GridSearch to ml_pipeline
-# [] Check the HDL and Glucose features used are actually the same
-# [] Add threaded processes to ml_pipeline
 
 
 # CONFIGURATION VARIABLES
 scoring = ["accuracy", "f1", "precision", "recall"]
 scoring_types = ["train", "test"]
-scoring_res = [f"{x}_{y}" for x in scoring_types for y in scoring]
+scoring_res = [f"mean_{x}_{y}" for x in scoring_types for y in scoring]
 csv_columns = ["model"] + scoring_res
+SAVE_DIR = "../results"
 
 random_state = 42
 folds = 10
@@ -43,16 +24,29 @@ folding_strats = [
 
 
 models = [
-    linear_model.LogisticRegression(
-        solver="lbfgs", max_iter=100, penalty='l2', random_state=random_state),
-    linear_model.SGDClassifier(
-        loss='perceptron', penalty='l1', shuffle=True, random_state=True),
-    linear_model.RidgeClassifier(solver='sag'),
-    ensemble.RandomForestClassifier(),
-    neighbors.KNeighborsClassifier(),
-    neural_network.MLPClassifier(),
-    svm.LinearSVC(),
-    svm.OneClassSVM()
+    (linear_model.LogisticRegression(multi_class="ovr",
+                                     random_state=random_state),
+     {"penalty": ['l1', 'l2'], "C":[0, .5, 1],
+      "solver": ["newton-cg", "lbfgs", "liblinear", "sag", "saga"],
+      }),
+    (linear_model.SGDClassifier(shuffle=True, random_state=random_state),
+        {"loss": ["perceptron", "log", "perceptron"], "penalty":["l1", "l2"]}),
+    (linear_model.RidgeClassifier(random_state=random_state), {"solver": [
+     "sag", "svd", "lsqr", "cholesky", "sparse_cg", "sag", "saga", "ldfgs"]}),
+    (ensemble.RandomForestClassifier(random_state=42), {
+     "class_weight": ["balanced", "balanced_subsample"]}),
+    (neighbors.KNeighborsClassifier(), {"weights": ["uniform", "distance"]}),
+    (neural_network.MLPClassifier(shuffle=True), {
+     "activation": ["logistic", "tanh", "relu"],
+     "solver": ["lbfgs", "sgd", "adam"],
+     "learning_rate":["invscaling"]
+     }),
+    (svm.LinearSVC(random_state=42), {"penalty": ['l1', 'l2'],
+                                      "C": [.05, 1],
+                                      }),
+    (svm.OneClassSVM(), {
+        "kernel": ["linear", "poly", 'rbf', 'sigmoid']
+    })
 ]
 
 
@@ -119,59 +113,18 @@ print(nhanse_dataset.UCOD_LEADING.value_counts())
 dataset = utils.combine_df_columns(combine_directions, nhanse_dataset)
 
 # DATASET TRANSFORMATION
+# TODO: Improve this tranformation to be sure that the Y is dropped from X
 X = dataset.loc[:, features].assign(
     CVR=dataset.UCOD_LEADING.apply(utils.labelCauseOfDeathAsCVR)).dropna()
 Y = X.CVR
-X = X.loc[:, features]
+X = X.loc[:, features].drop(columns=['UCOD_LEADING'])
 
 print(f"Dataset Size: {X.shape}")
 print(f"True Sample Count: {Y.sum()}")
 print(f"True Sample Percentage: {Y.sum() / X.shape[0] * 100}%")
 
-# RUN PIPELINE
+run_name = "experiment1"
+
+# RUN EXPERIMENT1
 res = run_ml_pipeline(folding_strats, X, Y, scoring, models,
-                      normalizers, csv_columns, scoring_res)
-
-res.to_csv('../results/all_results.csv')
-
-# Group Fold Results into Plot
-for foldName, data in res.groupby(['foldingStrat']):
-    plt.title(foldName)
-    for normName, data2 in data.groupby(['normalizer']):
-        f1 = data2.test_f1
-        models = data2.model
-        norms = data2.normalizer
-        # encodedNorms = preprocessing.LabelEncoder().fit_transform(norms)
-
-        plt.scatter(models, f1, label=normName)
-    plt.xticks(models, rotation=-15, fontsize="x-small")
-    plt.xlabel("Models")
-    plt.ylabel("F1")
-    plt.legend(loc="best")
-    plt.savefig(f"../results/{foldName}_plot.png")
-    plt.close()
-
-# Display All Results in 3d plot
-fig = plt.figure(figsize=(10, 10))
-ax = fig.add_subplot(111, projection='3d')
-normEncoder = preprocessing.LabelEncoder()
-modelEncoder = preprocessing.LabelEncoder()
-res = res.assign(normalizer_enc=normEncoder.fit_transform(res.normalizer),
-                 model_enc=modelEncoder.fit_transform(res.model))
-
-for foldName, data in res.groupby(['foldingStrat']):
-    f1 = data.test_f1
-    models = data.model_enc
-    norms = data.normalizer_enc
-
-    ax.scatter(models, norms, f1, label=foldName)
-
-plt.xticks(res.model_enc, modelEncoder.inverse_transform(res.model_enc))
-plt.yticks(res.normalizer_enc,
-           normEncoder.inverse_transform(res.normalizer_enc))
-plt.xlabel("Models")
-plt.ylabel("Normalizations")
-plt.zlabel("F1")
-plt.legend(loc="best")
-plt.savefig(f"../results/all_results_3d_plot.png")
-plt.close()
+                      normalizers, csv_columns, scoring_res, SAVE_DIR, run_name, fit_score="f1")
