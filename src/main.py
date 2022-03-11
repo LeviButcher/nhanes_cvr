@@ -20,7 +20,7 @@ folding_strats = [
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=random_state),
     BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
-    # RepeatedBalancedKFold(n_splits=folds)
+    RepeatedBalancedKFold(n_splits=folds)
 ]
 
 
@@ -116,9 +116,7 @@ def combine_configs(experiment_config):
 
 
 def get_dataset(combine_directions):
-    # DATASET LOADING
     features = [x for _, x in combine_directions]
-
     dataset = utils.combine_df_columns(combine_directions, NHANSE_DATASET)
 
     print(f"Dataset Size: {dataset.shape}")
@@ -135,6 +133,7 @@ def get_dataset(combine_directions):
     print(f"Dataset Size (After dropping NAN): {X.shape}")
     print(f"True Sample Count: {Y.sum()}")
     print(f"True Sample Percentage: {Y.sum() / X.shape[0] * 100}%")
+
     return X, Y
 
 
