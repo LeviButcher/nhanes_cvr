@@ -24,7 +24,7 @@ def train_model(model: any, X: pd.DataFrame, y: pd.Series, cv: any, scoring: Lis
 def grid_search_train_model(model: any, params: any, X: pd.DataFrame, y: pd.Series, cv: any, scoring: List[str], fit_score: str):
     gs = model_selection.GridSearchCV(estimator=model, param_grid=params,
                                       cv=cv, scoring=scoring, refit=fit_score,
-                                      return_train_score=True, n_jobs=-1)
+                                      return_train_score=True, n_jobs=15)
 
     res = gs.fit(X, y)
     res = pd.DataFrame(res.cv_results_)
@@ -44,14 +44,14 @@ def plot_pca_for_normalizer(X, Y, normalizer, save_dir):
     plot_pca(X, Y, f"{save_dir}/{normName}_pca.png")
 
 
-def save_stats_for_cv_results(csvDataFrame, resDir, name):
+def save_stats_for_cv_results(csvDataFrame, resDir, name, fit_score):
     x = csvDataFrame.model
-    y = csvDataFrame.mean_test_f1
+    y = csvDataFrame[f"mean_test_{fit_score}"]
 
     plt.bar(x, y)
     plt.xticks(x, rotation=-15, fontsize="x-small")
     plt.xlabel("Model")
-    plt.ylabel("Test F1 Score")
+    plt.ylabel(f"Test {fit_score} Score")
     plt.title(name)
     plt.savefig(
         f"{resDir}/{name}_model_plot_results.png")
@@ -94,7 +94,7 @@ def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd
         csv_data, columns=csv_columns).assign(normalizer=pd.Series(normName, index=range(modelCount)),
                                               foldingStrat=pd.Series(stratName, index=range(modelCount)))
 
-    save_stats_for_cv_results(csv_dataframe, resDir, fullName)
+    save_stats_for_cv_results(csv_dataframe, resDir, fullName, fit_score)
 
     return csv_dataframe
 
@@ -116,8 +116,8 @@ def run_ml_pipeline(folding_strats, X, Y, scoring, models, normalizers, csv_colu
 
     res = pd.concat(res)
 
-    plot_fold_results(res, save_dir)
-    plot3d_all_fold_results(res, save_dir)
+    plot_fold_results(res, save_dir, fit_score)
+    plot3d_all_fold_results(res, save_dir, fit_score)
     res.to_csv(f'{save_dir}/all_results.csv')
 
     return res
@@ -132,24 +132,24 @@ def plot_pca(X: pd.DataFrame, Y: pd.Series, location: str):
     plt.close()
 
 
-def plot_fold_results(res: pd.DataFrame, save_dir: str):
+def plot_fold_results(res: pd.DataFrame, save_dir: str, fit_score: str):
     # Group Fold Results into Plot
     for foldName, data in res.groupby(['foldingStrat']):
         plt.title(foldName)
         for normName, data2 in data.groupby(['normalizer']):
-            f1 = data2.mean_test_f1
+            score = data2[f"mean_test_{fit_score}"]
             models = data2.model
 
-            plt.scatter(models, f1, label=normName)
+            plt.scatter(models, score, label=normName)
         plt.xticks(models, rotation=-15, fontsize="x-small")
         plt.xlabel("Models")
-        plt.ylabel("F1")
+        plt.ylabel(fit_score)
         plt.legend(loc="best")
         plt.savefig(f"{save_dir}/{foldName}_plot.png")
         plt.close()
 
 
-def plot3d_all_fold_results(res: pd.DataFrame, save_dir: str):
+def plot3d_all_fold_results(res: pd.DataFrame, save_dir: str, fit_score: str):
     # Display All Results in 3d plot
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')
@@ -159,18 +159,18 @@ def plot3d_all_fold_results(res: pd.DataFrame, save_dir: str):
                      model_enc=modelEncoder.fit_transform(res.model))
 
     for foldName, data in res.groupby(['foldingStrat']):
-        f1 = data.mean_test_f1
+        score = data[f"mean_test_{fit_score}"]
         models = data.model_enc
         norms = data.normalizer_enc
 
-        ax.scatter(models, norms, f1, label=foldName)
+        ax.scatter(models, norms, score, label=foldName)
 
     plt.xticks(res.model_enc, modelEncoder.inverse_transform(res.model_enc))
     plt.yticks(res.normalizer_enc,
                normEncoder.inverse_transform(res.normalizer_enc))
     ax.set_xlabel("Models")
     ax.set_ylabel("Normalizations")
-    ax.set_zlabel("F1")
+    ax.set_zlabel(fit_score)
     plt.legend(loc="best")
     plt.savefig(f"{save_dir}/all_results_3d_plot.png")
     plt.close()

@@ -1,3 +1,0 @@
-,model,train_accuracy,train_f1,train_precision,train_recall,test_accuracy,test_f1,test_precision,test_recall
-0,LinearSVC,0.959338654234256,0.0,0.0,0.0,0.9593353619474696,0.0,0.0,0.0
-1,OneClassSVM,,,,,,,,
