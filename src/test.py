@@ -21,4 +21,4 @@ gscv = GridSearchCV(model, param_grid, cv=cv, scoring=[
 res = gscv.fit(X, Y)
 print(res)
 res = pd.DataFrame(res.cv_results_)
-print(res.mean_test_precision)
+print(res.keys())

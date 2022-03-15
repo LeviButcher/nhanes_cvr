@@ -1,8 +1,8 @@
-,model,mean_train_accuracy,mean_train_f1,mean_train_precision,mean_train_recall,mean_test_accuracy,mean_test_f1,mean_test_precision,mean_test_recall,normalizer,foldingStrat
-0,LogisticRegression,,,,,,,,,MinMaxScaler,StratifiedKFold
-1,SGDClassifier,0.8963691583948611,0.0072105722977150516,0.013408363740869846,0.06570718938082282,0.8973394836728735,0.006136314792020789,0.0032162236140853688,0.06666666666666667,MinMaxScaler,StratifiedKFold
-2,RandomForestClassifier,0.9998892901772243,0.9987917481488247,1.0,0.9975920314947646,0.9539660506908537,0.0,0.0,0.0,MinMaxScaler,StratifiedKFold
-3,KNeighborsClassifier,0.9772374991420418,0.5168559577352021,0.845505883005883,0.5086662132080139,0.9526373230482327,0.0024999999999999996,0.01,0.0014285714285714286,MinMaxScaler,StratifiedKFold
-4,MLPClassifier,0.9540305146186978,0.0,0.0,0.0,0.9540324517532706,0.0,0.0,0.0,MinMaxScaler,StratifiedKFold
-5,LinearSVC,,,,,,,,,MinMaxScaler,StratifiedKFold
-6,OneClassSVM,,,,,,,,,MinMaxScaler,StratifiedKFold
+,model,mean_train_precision,mean_train_recall,mean_train_f1,mean_train_accuracy,mean_test_precision,mean_test_recall,mean_test_f1,mean_test_accuracy,normalizer,foldingStrat
+0,LogisticRegression,0.0,0.0,0.0,0.954032154635098,0.0,0.0,0.0,0.9540324517532707,MinMaxScaler,StratifiedKFold
+1,SGDClassifier,0.004772405103165853,0.09711538461538462,0.009097733073112145,0.8692646269598214,0.004913294797687861,0.1,0.009366391184573004,0.8710537283490153,MinMaxScaler,StratifiedKFold
+2,RidgeClassifier,0.0,0.0,0.0,0.954032154635098,0.0,0.0,0.0,0.9540324517532707,MinMaxScaler,StratifiedKFold
+3,RandomForestClassifier,1.0,0.9980728007255338,0.9990327733302371,0.9999114303986264,0.0,0.0,0.0,0.9535012432539347,MinMaxScaler,StratifiedKFold
+4,KNeighborsClassifier,1.0,1.0,1.0,1.0,0.02,0.002857142857142857,0.004999999999999999,0.951773579441101,MinMaxScaler,StratifiedKFold
+5,MLPClassifier,0.0,0.0,0.0,0.954032154635098,0.0,0.0,0.0,0.9540324517532707,MinMaxScaler,StratifiedKFold
+6,LinearSVC,0.0,0.0,0.0,0.954032154635098,0.0,0.0,0.0,0.9540324517532707,MinMaxScaler,StratifiedKFold

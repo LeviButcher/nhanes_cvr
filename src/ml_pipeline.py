@@ -14,34 +14,27 @@ def get_class_name(x: any) -> str:
     return x.__class__.__name__
 
 
-def train_model(model: any, X: pd.DataFrame, y: pd.Series, cv: any, scoring: List[str]) -> Tuple[any, dict]:
-    res = model_selection.cross_validate(
-        model, X, y, cv=cv, scoring=scoring, return_train_score=True)
+def grid_search_train_model(model: any, params: any, X: pd.DataFrame, y: pd.Series, cv: any, scoring: List[str], fit_score: str, save_dir: str):
+    print(f"      on: {model}")
+    modelName = get_class_name(model)
 
-    return model, res
-
-
-def grid_search_train_model(model: any, params: any, X: pd.DataFrame, y: pd.Series, cv: any, scoring: List[str], fit_score: str):
     gs = model_selection.GridSearchCV(estimator=model, param_grid=params,
                                       cv=cv, scoring=scoring, refit=fit_score,
-                                      return_train_score=True, n_jobs=15)
+                                      return_train_score=True, n_jobs=5)
 
     res = gs.fit(X, y)
-    res = pd.DataFrame(res.cv_results_)
+
+    pd.DataFrame(res.cv_results_).to_csv(
+        f"{save_dir}/{modelName}_grid_search_res.csv")
+
     return model, res
 
 
 def transform_to_csv_data(modelRes: Tuple[any, dict], scoring_res: List[str]) -> List[str]:
     m, res = modelRes
-    scores = [np.average(res[x]) for x in scoring_res]
+    best = res.best_index_
+    scores = [res.cv_results_[x][best] for x in scoring_res]
     return [get_class_name(m)] + scores
-
-
-def plot_pca_for_normalizer(X, Y, normalizer, save_dir):
-    normName = get_class_name(normalizer) if normalizer else "Normal"
-    X[:] = normalizer.fit_transform(
-        X, Y) if normalizer else X  # Scale X
-    plot_pca(X, Y, f"{save_dir}/{normName}_pca.png")
 
 
 def save_stats_for_cv_results(csvDataFrame, resDir, name, fit_score):
@@ -68,6 +61,13 @@ def ensure_directory_exists(path):
         pass
 
 
+def map_dataframe(func, dataframe) -> pd.DataFrame:
+    r = dataframe.copy()
+    r.loc[:, :] = func(dataframe)
+
+    return r
+
+
 def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd.Series,
                                 scoring: List[str], models: List[Tuple[any, any]], csv_columns: List[str], scoring_res: List[str], save_dir, fit_score) -> pd.DataFrame:
     normName = get_class_name(normalizer) if normalizer else "Normal"
@@ -80,15 +80,14 @@ def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd
 
     print(f"Running {fullName}")
 
-    X[:] = normalizer.fit_transform(
-        X, Y) if normalizer else X  # Scale X
-    plot_pca(X, Y, f"{save_dir}/{normName}_pca.png")
+    normX = map_dataframe(lambda x: normalizer.fit_transform(
+        x, Y), X) if normalizer else X  # Scale X
+    plot_pca(normX, Y, f"{save_dir}/{normName}_pca.png")
 
     modelCount = len(models)
     modelRes = [grid_search_train_model(
-        m, p, X, Y, cv, scoring, fit_score) for m, p in models]
-    csv_data = [transform_to_csv_data(
-        x, scoring_res) for x in modelRes]
+        m, p, normX, Y, cv, scoring, fit_score, resDir) for m, p in models]
+    csv_data = [transform_to_csv_data(x, scoring_res) for x in modelRes]
 
     csv_dataframe = pd.DataFrame(
         csv_data, columns=csv_columns).assign(normalizer=pd.Series(normName, index=range(modelCount)),

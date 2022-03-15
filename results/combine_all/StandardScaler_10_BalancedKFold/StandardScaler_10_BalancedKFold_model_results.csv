@@ -1,8 +1,8 @@
-,model,mean_train_accuracy,mean_train_f1,mean_train_precision,mean_train_recall,mean_test_accuracy,mean_test_f1,mean_test_precision,mean_test_recall,normalizer,foldingStrat
-0,LogisticRegression,,,,,,,,,StandardScaler,BalancedKFold
-1,SGDClassifier,0.8786624379149398,0.10073514465870526,0.16326306717348238,0.1126743222054903,0.8700828157349897,0.07175771450771452,0.11835906685906687,0.09253968253968253,StandardScaler,BalancedKFold
-2,RandomForestClassifier,1.0,1.0,1.0,1.0,0.9211180124223602,0.0125,0.05,0.007142857142857143,StandardScaler,BalancedKFold
-3,KNeighborsClassifier,0.9625070321491795,0.5548344201412221,0.99,0.5293395940317269,0.9211076604554866,0.08333333333333333,0.175,0.06428571428571428,StandardScaler,BalancedKFold
-4,MLPClassifier,0.8973635390305067,0.3782597326895116,0.4841216131578633,0.41201974926056917,0.8486381412468369,0.06400546354330897,0.07778602473189716,0.10133597883597883,StandardScaler,BalancedKFold
-5,LinearSVC,,,,,,,,,StandardScaler,BalancedKFold
-6,OneClassSVM,,,,,,,,,StandardScaler,BalancedKFold
+,model,mean_train_precision,mean_train_recall,mean_train_f1,mean_train_accuracy,mean_test_precision,mean_test_recall,mean_test_f1,mean_test_accuracy,normalizer,foldingStrat
+0,LogisticRegression,0.0,0.0,0.0,0.9205186500338061,0.0,0.0,0.0,0.9203933747412009,StandardScaler,BalancedKFold
+1,SGDClassifier,0.09892445662449326,0.14241598472449538,0.10866775143471066,0.8693016366198201,0.1146218487394958,0.1394047619047619,0.1165151515151515,0.8798964803312629,StandardScaler,BalancedKFold
+2,RidgeClassifier,0.0,0.0,0.0,0.9205186500338061,0.0,0.0,0.0,0.9203933747412009,StandardScaler,BalancedKFold
+3,RandomForestClassifier,1.0,1.0,1.0,1.0,0.2,0.02857142857142857,0.05,0.9218426501035196,StandardScaler,BalancedKFold
+4,KNeighborsClassifier,0.6083333333333333,0.0346440823465229,0.06520377168767846,0.9222845581745831,0.0,0.0,0.0,0.9189440993788821,StandardScaler,BalancedKFold
+5,MLPClassifier,1.0,1.0,1.0,1.0,0.16916666666666666,0.1769047619047619,0.15358585858585858,0.869855072463768,StandardScaler,BalancedKFold
+6,LinearSVC,0.0,0.0,0.0,0.9205186500338061,0.0,0.0,0.0,0.9203933747412009,StandardScaler,BalancedKFold

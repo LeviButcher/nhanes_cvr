@@ -1,12 +1,18 @@
+import numpy as np
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
 from BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 import utils
 import nhanse_dl
 from ml_pipeline import run_ml_pipeline
+from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
 
 
 # CONFIGURATION VARIABLES
-scoring = ["accuracy", "f1", "precision", "recall"]
+scores = {"precision": make_scorer(precision_score, average="binary", zero_division=0),
+          "recall": make_scorer(recall_score, average="binary", zero_division=0),
+          "f1": make_scorer(f1_score, average="binary", zero_division=0),
+          "accuracy": make_scorer(accuracy_score)}
+scoring = scores.keys()
 scoring_types = ["train", "test"]
 scoring_res = [f"mean_{x}_{y}" for x in scoring_types for y in scoring]
 csv_columns = ["model"] + scoring_res
@@ -20,34 +26,57 @@ folding_strats = [
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=random_state),
     BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
-    RepeatedBalancedKFold(n_splits=folds)
+    # RepeatedBalancedKFold(n_splits=folds)
 ]
 
 
 models = [
-    (linear_model.LogisticRegression(multi_class="ovr",
-                                     random_state=random_state),
-     {"penalty": ['l1', 'l2'], "C":[0, .5, 1],
-      "solver": ["newton-cg", "lbfgs", "liblinear", "sag", "saga"],
-      }),
+    (linear_model.LogisticRegression(random_state=random_state, max_iter=100),
+     [
+        {
+            "C": np.linspace(0.1, 1, 10),
+            "penalty": ["l2"],
+            "solver": ["newton-cg", "lbfgs", "liblinear", "sag", "saga"]
+        },
+        {
+            "C": np.linspace(0.1, 1, 10),
+            "penalty": ["l1"],
+            "solver": ["liblinear", "saga"]
+        }
+    ]),
+
     (linear_model.SGDClassifier(shuffle=True, random_state=random_state),
         {"loss": ["perceptron", "log", "perceptron"], "penalty":["l1", "l2"]}),
-    # (linear_model.RidgeClassifier(random_state=random_state), {"solver": [
-    #  "sag", "svd", "lsqr", "cholesky", "sparse_cg", "sag", "saga", "ldfgs"]}),
-    (ensemble.RandomForestClassifier(random_state=42), {
-     "class_weight": ["balanced", "balanced_subsample"]}),
+
+    (linear_model.RidgeClassifier(random_state=random_state), [
+        {"solver": [
+            "sag", "svd", "lsqr", "cholesky", "sparse_cg", "sag", "saga"]},
+        {"solver": ["lbfgs"], "positive": [True]}
+    ]),
+
+    (ensemble.RandomForestClassifier(random_state=random_state), {
+     "class_weight": [None, "balanced", "balanced_subsample"]}
+     ),
+
     (neighbors.KNeighborsClassifier(), {"weights": ["uniform", "distance"]}),
+
     (neural_network.MLPClassifier(shuffle=True), {
      "activation": ["logistic", "tanh", "relu"],
      "solver": ["lbfgs", "sgd", "adam"],
      "learning_rate":["invscaling"]
      }),
-    (svm.LinearSVC(random_state=42), {"penalty": ['l1', 'l2'],
-                                      "C": [.05, 1],
-                                      }),
-    (svm.OneClassSVM(), {
-        "kernel": ["linear", "poly", 'rbf', 'sigmoid']
-    })
+
+    (svm.LinearSVC(random_state=42), [
+        {
+            "loss": ["hinge"],
+            "penalty": ['l2'],
+            "C": [.05, 1],
+        }, {
+            "loss": ["squared_hinge"],
+            "penalty": ['l2'],
+            "C": [.05, 1],
+        }
+    ])
 ]
 
 
@@ -55,7 +84,8 @@ normalizers = [
     None,
     preprocessing.MinMaxScaler(),
     preprocessing.Normalizer(),
-    preprocessing.StandardScaler()
+    preprocessing.StandardScaler(),
+    preprocessing.RobustScaler()
 ]
 
 NHANSE_DATA_FILES = [
@@ -145,8 +175,7 @@ EXPERIMENT_CONFIG.append(combine_configs(EXPERIMENT_CONFIG))
 for run_name, combine_directions in EXPERIMENT_CONFIG:
     print(f"Experiment: {run_name}")
     X, Y = get_dataset(combine_directions)
+    X.describe().to_csv(f"{SAVE_DIR}/{run_name}_feature_description.csv")
 
-    print(X.describe())
-
-    res = run_ml_pipeline(folding_strats, X, Y, scoring, models,
+    res = run_ml_pipeline(folding_strats, X, Y, scores, models,
                           normalizers, csv_columns, scoring_res, SAVE_DIR, run_name, fit_score=FIT_SCORE)

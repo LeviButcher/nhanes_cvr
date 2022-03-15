@@ -1,8 +1,0 @@
-,model,mean_train_accuracy,mean_train_f1,mean_train_precision,mean_train_recall,mean_test_accuracy,mean_test_f1,mean_test_precision,mean_test_recall,normalizer,foldingStrat
-0,LogisticRegression,,,,,,,,,StandardScaler,RepeatedBalancedKFold
-1,SGDClassifier,0.9602997662391726,0.03044560022196866,0.041791136449265166,0.046037359534457055,0.9575765639589169,0.011761497761497762,0.008914261664261664,0.023611111111111107,StandardScaler,RepeatedBalancedKFold
-2,RandomForestClassifier,1.0,1.0,1.0,1.0,0.9760672268907564,0.0025,0.005,0.0016666666666666666,StandardScaler,RepeatedBalancedKFold
-3,KNeighborsClassifier,0.9879782976402051,0.5456002522775978,0.6566666666666666,0.5267528164774682,0.9745378151260506,0.0,0.0,0.0,StandardScaler,RepeatedBalancedKFold
-4,MLPClassifier,0.9181689859766377,0.341973722868633,0.3386243565315879,0.40349538948132857,0.9045894802365392,0.048213320685352994,0.05059349931379902,0.10798148148148148,StandardScaler,RepeatedBalancedKFold
-5,LinearSVC,,,,,,,,,StandardScaler,RepeatedBalancedKFold
-6,OneClassSVM,,,,,,,,,StandardScaler,RepeatedBalancedKFold
