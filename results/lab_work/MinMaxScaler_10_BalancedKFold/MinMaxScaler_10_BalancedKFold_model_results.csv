@@ -1,8 +1,8 @@
 ,model,mean_train_precision,mean_train_recall,mean_train_f1,mean_train_accuracy,mean_test_precision,mean_test_recall,mean_test_f1,mean_test_accuracy,normalizer,foldingStrat
-0,LogisticRegression,0.0,0.0,0.0,0.9764154309593571,0.0,0.0,0.0,0.9764425770308124,MinMaxScaler,BalancedKFold
-1,SGDClassifier,0.0,0.0,0.0,0.9764154309593571,0.0,0.0,0.0,0.9764425770308124,MinMaxScaler,BalancedKFold
-2,RidgeClassifier,0.0,0.0,0.0,0.9764154309593571,0.0,0.0,0.0,0.9764425770308124,MinMaxScaler,BalancedKFold
-3,RandomForestClassifier,1.0,1.0,1.0,1.0,0.0,0.0,0.0,0.9764425770308124,MinMaxScaler,BalancedKFold
-4,KNeighborsClassifier,1.0,1.0,1.0,1.0,0.1,0.025,0.04,0.9752661064425772,MinMaxScaler,BalancedKFold
-5,MLPClassifier,0.9375,0.19851522187822498,0.3154805194805195,0.980608201299637,0.1,0.025,0.04,0.9764425770308124,MinMaxScaler,BalancedKFold
-6,LinearSVC,0.0,0.0,0.0,0.9764154309593571,0.0,0.0,0.0,0.9764425770308124,MinMaxScaler,BalancedKFold
+0,LogisticRegression,0.0,0.0,0.0,0.9705190313793033,0.0,0.0,0.0,0.970532212885154,MinMaxScaler,BalancedKFold
+1,SGDClassifier,0.0,0.0,0.0,0.968423761262034,0.0,0.0,0.0,0.9669607843137253,MinMaxScaler,BalancedKFold
+2,RidgeClassifier,0.0,0.0,0.0,0.9705190313793033,0.0,0.0,0.0,0.970532212885154,MinMaxScaler,BalancedKFold
+3,RandomForestClassifier,1.0,1.0,1.0,1.0,0.0,0.0,0.0,0.9693557422969187,MinMaxScaler,BalancedKFold
+4,KNeighborsClassifier,1.0,1.0,1.0,1.0,0.1,0.05,0.06666666666666667,0.9681792717086832,MinMaxScaler,BalancedKFold
+5,MLPClassifier,0.7380952380952381,0.10322463768115944,0.17564452455756804,0.9730085155729998,0.1,0.025,0.04,0.9705322128851541,MinMaxScaler,BalancedKFold
+6,LinearSVC,0.0,0.0,0.0,0.9705190313793033,0.0,0.0,0.0,0.970532212885154,MinMaxScaler,BalancedKFold

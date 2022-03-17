@@ -33,3 +33,21 @@ def test_get_mortality_data():
     res = nhanse_dl.get_mortstat_data(nhanse_requests)
 
     assert len(res) != 0
+
+
+def test_get_mortality_constructs_correctly():
+    year = (1999, 2000)
+    url = nhanse_dl.build_morstat_download_url(year)
+    data = nhanse_dl.read_mortstat(url)
+
+    expected = pd.DataFrame({"SEQN": [9960.0], "ELIGSTAT": [1.0],
+                            "MORTSTAT": [1], "UCOD_LEADING": [2.0],
+                             "DIABETES": [0.0], "HYPERTEN": [0.0],
+                             "PERMTH_INT": [21.0], "PERMTH_EXM": [21.0]
+                             }).set_index("SEQN")
+
+    res = data.loc[9960, :]
+
+    print(res)
+
+    assert expected.loc[9960, :].equals(res)

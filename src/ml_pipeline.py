@@ -1,26 +1,24 @@
-from concurrent.futures import thread
-import os
-import threading
 from typing import List, Tuple
 import pandas as pd
 from sklearn import model_selection, decomposition, preprocessing
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib import pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+
+from utils import ensure_directory_exists, map_dataframe
 
 
 def get_class_name(x: any) -> str:
     return x.__class__.__name__
 
 
-def grid_search_train_model(model: any, params: any, X: pd.DataFrame, y: pd.Series, cv: any, scoring: List[str], fit_score: str, save_dir: str):
+def grid_search_train_model(model: any, params: any, X: pd.DataFrame, y: pd.Series,
+                            cv: any, scoring: List[str], fit_score: str, save_dir: str):
     print(f"      on: {model}")
     modelName = get_class_name(model)
 
     gs = model_selection.GridSearchCV(estimator=model, param_grid=params,
                                       cv=cv, scoring=scoring, refit=fit_score,
-                                      return_train_score=True, n_jobs=5)
+                                      return_train_score=True, n_jobs=-1, pre_dispatch=10)
 
     res = gs.fit(X, y)
 
@@ -54,20 +52,6 @@ def save_stats_for_cv_results(csvDataFrame, resDir, name, fit_score):
         f"{resDir}/{name}_model_results.csv")
 
 
-def ensure_directory_exists(path):
-    try:
-        os.mkdir(path)
-    except:
-        pass
-
-
-def map_dataframe(func, dataframe) -> pd.DataFrame:
-    r = dataframe.copy()
-    r.loc[:, :] = func(dataframe)
-
-    return r
-
-
 def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd.Series,
                                 scoring: List[str], models: List[Tuple[any, any]], csv_columns: List[str], scoring_res: List[str], save_dir, fit_score) -> pd.DataFrame:
     normName = get_class_name(normalizer) if normalizer else "Normal"
@@ -87,6 +71,7 @@ def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd
     modelCount = len(models)
     modelRes = [grid_search_train_model(
         m, p, normX, Y, cv, scoring, fit_score, resDir) for m, p in models]
+
     csv_data = [transform_to_csv_data(x, scoring_res) for x in modelRes]
 
     csv_dataframe = pd.DataFrame(

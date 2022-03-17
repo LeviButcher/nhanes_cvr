@@ -1,6 +1,5 @@
 from typing import List, Tuple
 import pandas as pd
-import functools
 import utils
 
 
@@ -16,19 +15,21 @@ class NHANSERequest:
         return f"{self.year}:{self.files}"
 
 
-mortality_colspecs = [(0, 13),
-                      (14, 14),
+mortality_colspecs = [(1, 14),
                       (15, 15),
-                      (16, 18),
-                      (19, 19),
+                      (16, 16),
+                      (17, 19),
                       (20, 20),
                       (21, 21),
-                      (22, 25),
-                      (26, 33),
-                      (34, 41),
-                      (42, 44),
-                      (45, 47)]
-mortality_widths = [14, 1, 1, 3, 1, 1, 1, 4, 3, 3, 5, 6]
+                      (22, 22),
+                      (23, 26),
+                      (27, 34),
+                      (35, 42),
+                      (43, 45),
+                      (46, 48)]
+
+mortality_widths = [e - (s-1) for s, e in mortality_colspecs]
+
 mortality_colnames = utils.toUpperCase(["publicid",
                                         "eligstat",
                                         "mortstat",
@@ -37,13 +38,15 @@ mortality_colnames = utils.toUpperCase(["publicid",
                                         "hyperten",
                                         "dodqtr",
                                         "dodyear",
-                                        "permth_int",
-                                        "permth_exm",
                                         "wgt_new",
-                                        "sa_wgt_new"])
+                                        "sa_wgt_new",
+                                        "permth_int",
+                                        "permth_exm"
+                                        ])
+
 drop_columns = utils.toUpperCase(["publicid",
                                   "dodqtr",
-                                  "dodyear",
+                                 "dodyear",
                                   "wgt_new",
                                   "sa_wgt_new"])
 
@@ -52,21 +55,8 @@ def read_mortstat(location: str) -> pd.DataFrame:
     # location = PATH | URL
     data = pd.read_fwf(location, widths=mortality_widths)
     data.columns = mortality_colnames
-    data = data.assign(SEQN=data.PUBLICID.apply(lambda x: str(x)[:8]))
-    data = functools.reduce(lambda acc, x: acc.drop(
-        x, axis=1), drop_columns, data)
-
-    # Convert data to correct types
-    # https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
-    data.SEQN = pd.to_numeric(data.SEQN, errors="coerce", downcast="integer")
-    data.MORTSTAT = pd.to_numeric(
-        data.MORTSTAT, errors="coerce")
-    data.DIABETES = pd.to_numeric(
-        data.DIABETES, errors="coerce")
-    data.HYPERTEN = pd.to_numeric(
-        data.HYPERTEN, errors="coerce")
-
-    return data.set_index("SEQN")
+    return data.assign(SEQN=data.PUBLICID).drop(columns=drop_columns).apply(
+        lambda x: pd.to_numeric(x, errors="coerce")).set_index("SEQN")
 
 
 def build_morstat_download_url(year: Tuple[int, int]) -> str:
@@ -77,28 +67,18 @@ def build_morstat_download_url(year: Tuple[int, int]) -> str:
 def get_mortstat_data(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:
     years = [x.year for x in nhanse_requests]
     data = map(utils.compose(read_mortstat,
-               build_morstat_download_url), years)
+                             build_morstat_download_url), years)
     return pd.concat(data)
 
 
 def get_nhanse_data(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:
-    data = []
+    data = [[read_nhanse_data(build_nhanse_url(x.year, f)) for f in x.files]
+            for x in nhanse_requests]
 
-    for x in nhanse_requests:
-        year, data_files = x.year, x.files
-        data.append([(year, read_nhanse_data(build_nhanse_url(year, f)))
-                    for f in data_files])
-
-    data = [combine_data_frames(l) for l in data]
-
+    data = [pd.concat(l, join="outer", axis=1) for l in data]
+    # Older Nhanse dataset repeat columns
+    data = [x.loc[:, ~x.columns.duplicated()] for x in data]
     return pd.concat(data)
-
-
-def combine_data_frames(listOfFrames: List[Tuple[str, pd.DataFrame]]) -> pd.DataFrame:
-    def joinDataFrame(acc, x): return acc.join(
-        x[1], how="outer", rsuffix=x[0])
-
-    return functools.reduce(joinDataFrame, listOfFrames, pd.DataFrame())
 
 
 def build_nhanse_url(year: Tuple[int, int], data_file: str) -> str:
@@ -108,14 +88,10 @@ def build_nhanse_url(year: Tuple[int, int], data_file: str) -> str:
 
 def read_nhanse_data(location: str) -> pd.DataFrame:
     # location = PATH | URL
-
-    df = pd.read_sas(location)
-    df = df.astype({'SEQN': 'int64'})
-
-    return df.set_index('SEQN')
+    return pd.read_sas(location).set_index('SEQN')
 
 
 def get_nhanse_mortality_dataset(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:
     nhanse_data = get_nhanse_data(nhanse_requests)
     mortality_data = get_mortstat_data(nhanse_requests)
-    return nhanse_data.join(mortality_data, on="SEQN", how="inner")
+    return nhanse_data.join(mortality_data, on="SEQN", how="outer")
