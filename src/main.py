@@ -1,6 +1,6 @@
 from matplotlib import pyplot as plt
-
 import numpy as np
+import pandas as pd
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
 from BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 import utils
@@ -112,89 +112,60 @@ NHANSE_DATA_FILES = [
     nhanse_dl.NHANSERequest(
         (2009, 2010),
         ["TCHOL_F.XPT", "TRIGLY_F.XPT", "HDL_F.XPT", "GLU_F.XPT", "CDQ_F.XPT", "DIQ_F.XPT", "BPQ_F.XPT"]),
-    # nhanse_dl.NHANSERequest(
-    #     (2011, 2012),
-    #     ["TCHOL_G.XPT", "TRIGLY_G.XPT", "HDL_G.XPT", "GLU_G.XPT", "CDQ_G.XPT", "DIQ_G.XPT", "BPQ_G.XPT"]),
-    # nhanse_dl.NHANSERequest(
-    #     (2013, 2014),
-    #     ["TCHOL_H.XPT", "TRIGLY_H.XPT", "HDL_H.XPT", "GLU_H.XPT", "CDQ_H.XPT", "DIQ_H.XPT", "BPQ_H.XPT"])
+    nhanse_dl.NHANSERequest(
+        (2011, 2012),
+        ["TCHOL_G.XPT", "TRIGLY_G.XPT", "HDL_G.XPT", "GLU_G.XPT", "CDQ_G.XPT", "DIQ_G.XPT", "BPQ_G.XPT"]),
+    nhanse_dl.NHANSERequest(
+        (2013, 2014),
+        ["TCHOL_H.XPT", "TRIGLY_H.XPT", "HDL_H.XPT", "GLU_H.XPT", "CDQ_H.XPT", "DIQ_H.XPT", "BPQ_H.XPT"])
 ]
 
 
 # NOTE: NHANSE dataset early on had different variables names for some features
-# combine directions is used to combine these features into a single feature
-# TODO Make into its own class, with custom functions, Could easily make use of monoids here
-EXPERIMENT_CONFIG = [
-    ("lab_work", [
-        (["LBXTC"], "Total_Chol"),
-        (["LBDLDL"], "LDL"),
-        # Could be having skewed data from using wrong HDL/FBG param in older sets
-        (["LBDHDL", "LBXHDD", "LBDHDD"], "HDL"),
-        (["LBXSGL", "LB2GLU", "LBXGLU"], "FBG"),
-        (["LBXTR"], "TG"),
+# CombineFeatures is used to combine these features into a single feature
+
+def answeredYesOnQuestion(x: pd.DataFrame): return x.applymap(
+    lambda d: 1 if d == 1 else 0)
+
+
+experimentConfigs = [
+    utils.Experiment("lab_work", [
+        utils.CombineFeatures.rename("LBXTC", "Total_Chol"),
+        utils.CombineFeatures.rename("LBDLDL", "LDL"),
+        utils.CombineFeatures(["LBDLDL", "LBXHDD", "LBDHDD"], "HDL"),
+        utils.CombineFeatures(["LBXSGL", "LB2GLU", "LBXGLU"], "FBG"),
+        utils.CombineFeatures.rename("LBXTR", "FBG"),
     ]),
-    ("classic_heart_attack",
-     [
-         (["DIQ010"], "DIABETES"),
-         (["BPQ020"], "HYPERTEN"),
-         #  (["DIABETES"], "DIABETES"),
-         #  (["HYPERTEN"], "HYPERTEN"),
-         (["CDQ001"], "CHEST_PAIN"),
-         #  (["CDQ005"], "STANDING_RELIEVE"),
-         #  (["CDQ009G"], "PAIN_LEFT_ARM"),
-         #  (["CDQ008"], "SEVERE_CHEST_PAIN"),
-     ])
+    utils.Experiment("classic_heart_attack", [
+        utils.CombineFeatures.rename(
+            "DIQ010", "DIABETES", answeredYesOnQuestion),
+        utils.CombineFeatures.rename(
+            "BPQ020", "HYPERTEN", answeredYesOnQuestion),
+        utils.CombineFeatures.rename(
+            "CDQ001", "CHEST_PAIN", answeredYesOnQuestion),
+    ])
 ]
 
 
 NHANSE_DATASET = nhanse_dl.get_nhanse_mortality_dataset(
     NHANSE_DATA_FILES)  # Load once
 
-NHANSE_DATASET = NHANSE_DATASET.loc[NHANSE_DATASET.ELIGSTAT == 1, :]
+LINKED_DATASET = NHANSE_DATASET.loc[NHANSE_DATASET.ELIGSTAT == 1, :]
+DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
 
-NHANSE_DATASET.to_csv("../results/nhanse_dataset.csv")
+DEAD_DATASET.describe().to_csv("../results/dead_dataset_info.csv")
 
-# print(NHANSE_DATASET.shape)
-# print(remove_outliers(NHANSE_DATASET))
-
-
-def combine_configs(experiment_config):
-    variables = utils.unique(
-        [x for _, config in experiment_config for x in config])
-    return ("combine_all", variables)
+experimentConfigs = experimentConfigs + \
+    [utils.combineExperiments("all_features", experimentConfigs)]
 
 
-def get_dataset(combine_directions, label_func):
-    features = [x for _, x in combine_directions]
-    dataset = utils.combine_df_columns(
-        combine_directions, NHANSE_DATASET).assign(Y=label_func(NHANSE_DATASET))
-
-    print(f"Dataset Size: {dataset.shape}")
-    print(dataset.isna().sum())
-    dataset = dataset.dropna()
-    print(dataset.shape)
-    # dataset = utils.remove_outliers(3, dataset, columns=features)
-    # print(dataset.shape)
-    # exit()
-
-    Y = dataset.Y
-    X = dataset.loc[:, features]
-
-    print(f"Dataset Size (After dropping NAN): {X.shape}")
-    print(f"True Sample Count: {Y.sum()}")
-    print(f"True Sample Percentage: {Y.sum() / X.shape[0] * 100}%")
-
-    return X, Y
-
-
-EXPERIMENT_CONFIG.append(combine_configs(EXPERIMENT_CONFIG))
-
-
-for run_name, combine_directions in EXPERIMENT_CONFIG:
+for run_name, combine_directions in experimentConfigs:
     print(f"Experiment: {run_name}")
-    X, Y = get_dataset(combine_directions, utils.labelCauseOfDeathAsCVR)
+    utils.ensure_directory_exists(f"{SAVE_DIR}/{run_name}")
+    X, Y = utils.process_dataset(DEAD_DATASET, combine_directions,
+                                 utils.labelCauseOfDeathAsCVR)
 
-    X.describe().to_csv(f"{SAVE_DIR}/{run_name}_feature_description.csv")
+    X.describe().to_csv(f"{SAVE_DIR}/{run_name}/feature_description.csv")
     X.hist(figsize=(10, 10))
     plt.savefig(f"{SAVE_DIR}/{run_name}/feature_hist.png")
     plt.close()
