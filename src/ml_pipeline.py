@@ -4,7 +4,7 @@ from sklearn import model_selection, decomposition, preprocessing
 import matplotlib.pyplot as plt
 from matplotlib import pyplot as plt
 
-from utils import ensure_directory_exists, map_dataframe
+from utils import ensure_directory_exists, labelCauseOfDeathAsCVR, map_dataframe, process_dataset, scalableFeatures
 
 
 def get_class_name(x: any) -> str:
@@ -52,7 +52,7 @@ def save_stats_for_cv_results(csvDataFrame, resDir, name, fit_score):
         f"{resDir}/{name}_model_results.csv")
 
 
-def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd.Series,
+def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd.Series, scalableList: List[str],
                                 scoring: List[str], models: List[Tuple[any, any]], csv_columns: List[str], scoring_res: List[str], save_dir, fit_score) -> pd.DataFrame:
     normName = get_class_name(normalizer) if normalizer else "Normal"
     stratName = get_class_name(cv)
@@ -65,7 +65,7 @@ def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd
     print(f"Running {fullName}")
 
     normX = map_dataframe(lambda x: normalizer.fit_transform(
-        x, Y), X) if normalizer else X  # Scale X
+        x, Y), X, scalableList) if normalizer else X  # Scale X
     plot_pca(normX, Y, f"{save_dir}/{normName}_pca.png")
 
     modelCount = len(models)
@@ -85,8 +85,20 @@ def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd
 # TODO Would like this to also turn back best models
 
 
-def run_ml_pipeline(folding_strats, X, Y, scoring, models, normalizers, csv_columns, scoring_res, save_dir, run_name, fit_score) -> List[pd.DataFrame]:
+def run_ml_pipeline(folding_strats, dataset, combine_directions, scoring, models, normalizers, csv_columns,         scoring_res, save_dir, run_name, fit_score) -> List[pd.DataFrame]:
     # Could do threading here but need to extract maplotlib functions out
+    X, Y = process_dataset(dataset, combine_directions,
+                           labelCauseOfDeathAsCVR)
+
+    X.describe().to_csv(f"{save_dir}/{run_name}/feature_description.csv")
+    X.hist(figsize=(10, 10))
+    plt.savefig(f"{save_dir}/{run_name}/feature_hist.png")
+    plt.close()
+
+    X.corr().to_csv(f"{save_dir}/{run_name}/correlation_matrix.csv")
+    X.corrwith(Y).to_csv(f"{save_dir}/{run_name}/correlation_to_y_matrix.csv")
+
+    scalableList = scalableFeatures(combine_directions)
 
     save_dir = f"{save_dir}/{run_name}"
     ensure_directory_exists(save_dir)
@@ -95,7 +107,7 @@ def run_ml_pipeline(folding_strats, X, Y, scoring, models, normalizers, csv_colu
     for normalizer in normalizers:
         for cv in folding_strats:
             x = run_normalizer_cv_on_models(
-                normalizer, cv, X, Y, scoring, models, csv_columns, scoring_res, save_dir, fit_score)
+                normalizer, cv, X, Y, scalableList, scoring, models, csv_columns, scoring_res, save_dir, fit_score)
             res.append(x)
 
     res = pd.concat(res)

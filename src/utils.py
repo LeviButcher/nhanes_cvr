@@ -17,15 +17,17 @@ ProcessFeatureFunction = Callable[[pd.Series], pd.Series]
 class CombineFeatures(NamedTuple):
     inFeatures: List[str]
     feature: str
+    scalable: bool = True
     postProcess: ProcessFeatureFunction = const
 
     # Pure is basically the identity function for AggregateFeature
     # Only 1 Feature in and it becomes the outFeature
-    def pure(name: str, postProcess=const):
-        return CombineFeatures([name], name, postProcess)
+    def pure(name: str, scalable: bool = True, postProcess: ProcessFeatureFunction = const):
+        return CombineFeatures([name], name, scalable, postProcess)
 
-    def rename(featureName: str, newFeatureName: str, postProcess=const):
-        return CombineFeatures([featureName], newFeatureName, postProcess)
+    def rename(featureName: str, newFeatureName: str, scalable: bool = True,
+               postProcess: ProcessFeatureFunction = const):
+        return CombineFeatures([featureName], newFeatureName, scalable, postProcess)
 
 
 class Experiment(NamedTuple):
@@ -34,6 +36,10 @@ class Experiment(NamedTuple):
 
 # Assume no repeat CombineFeatures
 # Should probably remove them
+
+
+def scalableFeatures(combineDirections: List[CombineFeatures]):
+    return [c.feature for c in combineDirections if c.scalable]
 
 
 def combineExperiments(name: str, experimentList: List[Experiment]) -> Experiment:
@@ -73,9 +79,10 @@ def ensure_directory_exists(path):
         pass
 
 
-def map_dataframe(func, dataframe) -> pd.DataFrame:
+def map_dataframe(func, dataframe, columns=None) -> pd.DataFrame:
+    columns = columns if columns else dataframe.columns
     r = dataframe.copy()
-    r.loc[:, :] = func(dataframe)
+    r.loc[:, columns] = func(dataframe.loc[:, columns])
 
     return r
 
@@ -105,9 +112,9 @@ def process_combined_features(combine_directions: List[CombineFeatures], x: pd.D
         lambda b, y: b if not np.isnan(b) else y, x, np.NAN)
 
     def combine(d: CombineFeatures, x: pd.DataFrame):
-        (inFeatures, featureName, postProcess) = d
-        series = x.loc[:, inFeatures].agg(keep_first_non_NAN, axis=1)
-        return postProcess(pd.DataFrame(series, columns=[featureName]))
+
+        series = x.loc[:, d.inFeatures].agg(keep_first_non_NAN, axis=1)
+        return d.postProcess(pd.DataFrame(series, columns=[d.feature]))
 
     res = [combine(d, x) for d in combine_directions]
 

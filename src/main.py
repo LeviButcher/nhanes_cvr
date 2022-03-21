@@ -96,28 +96,36 @@ normalizers = [
 NHANSE_DATA_FILES = [
     nhanse_dl.NHANSERequest(
         (1999, 2000),
-        ["LAB13.XPT", "LAB13AM.XPT", "LAB10AM.XPT", "LAB18.XPT", "CDQ.XPT", "DIQ.XPT", "BPQ.XPT"]),
+        ["LAB13.XPT", "LAB13AM.XPT", "LAB10AM.XPT", "LAB18.XPT", "CDQ.XPT", "DIQ.XPT", "BPQ.XPT",
+            "BMX.XPT", "DEMO.XPT"]),
     nhanse_dl.NHANSERequest(
         (2001, 2002),
-        ["L13_B.XPT", "L13AM_B.XPT", "L10AM_B.XPT", "L10_2_B.XPT", "CDQ_B.XPT", "DIQ_B.XPT", "BPQ_B.XPT"]),
+        ["L13_B.XPT", "L13AM_B.XPT", "L10AM_B.XPT", "L10_2_B.XPT", "CDQ_B.XPT", "DIQ_B.XPT", "BPQ_B.XPT",
+            "BMX_B.XPT", "DEMO_B.XPT"]),
     nhanse_dl.NHANSERequest(
         (2003, 2004),
-        ["L13_C.XPT", "L13AM_C.XPT", "L10AM_C.XPT", "CDQ_C.XPT", "DIQ_C.XPT", "BPQ_C.XPT"]),
+        ["L13_C.XPT", "L13AM_C.XPT", "L10AM_C.XPT", "CDQ_C.XPT", "DIQ_C.XPT", "BPQ_C.XPT", "BMX_C.XPT",
+            "DEMO_C.XPT"]),
     nhanse_dl.NHANSERequest(
         (2005, 2006),
-        ["TCHOL_D.XPT", "TRIGLY_D.XPT", "HDL_D.XPT", "GLU_D.XPT", "CDQ_D.XPT", "DIQ_D.XPT", "BPQ_D.XPT"]),
+        ["TCHOL_D.XPT", "TRIGLY_D.XPT", "HDL_D.XPT", "GLU_D.XPT", "CDQ_D.XPT", "DIQ_D.XPT", "BPQ_D.XPT",
+            "BMX_D.XPT", "DEMO_D.XPT"]),
     nhanse_dl.NHANSERequest(
         (2007, 2008),
-        ["TCHOL_E.XPT", "TRIGLY_E.XPT", "HDL_E.XPT", "GLU_E.XPT", "CDQ_E.XPT", "DIQ_E.XPT", "BPQ_E.XPT"]),
+        ["TCHOL_E.XPT", "TRIGLY_E.XPT", "HDL_E.XPT", "GLU_E.XPT", "CDQ_E.XPT", "DIQ_E.XPT", "BPQ_E.XPT",
+            "BMX_E.XPT", "DEMO_E.XPT"]),
     nhanse_dl.NHANSERequest(
         (2009, 2010),
-        ["TCHOL_F.XPT", "TRIGLY_F.XPT", "HDL_F.XPT", "GLU_F.XPT", "CDQ_F.XPT", "DIQ_F.XPT", "BPQ_F.XPT"]),
+        ["TCHOL_F.XPT", "TRIGLY_F.XPT", "HDL_F.XPT", "GLU_F.XPT", "CDQ_F.XPT", "DIQ_F.XPT", "BPQ_F.XPT",
+            "BMX_F.XPT", "DEMO_F.XPT"]),
     nhanse_dl.NHANSERequest(
         (2011, 2012),
-        ["TCHOL_G.XPT", "TRIGLY_G.XPT", "HDL_G.XPT", "GLU_G.XPT", "CDQ_G.XPT", "DIQ_G.XPT", "BPQ_G.XPT"]),
+        ["TCHOL_G.XPT", "TRIGLY_G.XPT", "HDL_G.XPT", "GLU_G.XPT", "CDQ_G.XPT", "DIQ_G.XPT", "BPQ_G.XPT",
+            "BMX_G.XPT", "DEMO_G.XPT"]),
     nhanse_dl.NHANSERequest(
         (2013, 2014),
-        ["TCHOL_H.XPT", "TRIGLY_H.XPT", "HDL_H.XPT", "GLU_H.XPT", "CDQ_H.XPT", "DIQ_H.XPT", "BPQ_H.XPT"])
+        ["TCHOL_H.XPT", "TRIGLY_H.XPT", "HDL_H.XPT", "GLU_H.XPT", "CDQ_H.XPT", "DIQ_H.XPT", "BPQ_H.XPT",
+            "BMX_H.XPT", "DEMO_H.XPT"])
 ]
 
 
@@ -132,17 +140,25 @@ experimentConfigs = [
     utils.Experiment("lab_work", [
         utils.CombineFeatures.rename("LBXTC", "Total_Chol"),
         utils.CombineFeatures.rename("LBDLDL", "LDL"),
-        utils.CombineFeatures(["LBDLDL", "LBXHDD", "LBDHDD"], "HDL"),
-        utils.CombineFeatures(["LBXSGL", "LB2GLU", "LBXGLU"], "FBG"),
+        utils.CombineFeatures(
+            ["LBDLDL", "LBXHDD", "LBDHDD"], "HDL"),
+        utils.CombineFeatures(
+            ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG"),
         utils.CombineFeatures.rename("LBXTR", "FBG"),
     ]),
     utils.Experiment("classic_heart_attack", [
         utils.CombineFeatures.rename(
-            "DIQ010", "DIABETES", answeredYesOnQuestion),
+            "DIQ010", "DIABETES", False, answeredYesOnQuestion),
         utils.CombineFeatures.rename(
-            "BPQ020", "HYPERTEN", answeredYesOnQuestion),
+            "BPQ020", "HYPERTEN", False, answeredYesOnQuestion),
         utils.CombineFeatures.rename(
-            "CDQ001", "CHEST_PAIN", answeredYesOnQuestion),
+            "CDQ001", "CHEST_PAIN", False, answeredYesOnQuestion),
+    ]),
+    utils.Experiment("measurements", [
+        utils.CombineFeatures.rename("BMXBMI", "BMI"),
+        utils.CombineFeatures.rename("BMXWAIST", "WC"),
+        # utils.CombineFeatures.rename("RIAGENDR", "GENDER"),
+        # utils.CombineFeatures.rename("RIDAGEYR", "AGE"),
     ])
 ]
 
@@ -155,23 +171,13 @@ DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
 
 DEAD_DATASET.describe().to_csv("../results/dead_dataset_info.csv")
 
-experimentConfigs = experimentConfigs + \
-    [utils.combineExperiments("all_features", experimentConfigs)]
+experimentConfigs = [utils.combineExperiments(
+    "all_features", experimentConfigs)]
 
 
 for run_name, combine_directions in experimentConfigs:
     print(f"Experiment: {run_name}")
     utils.ensure_directory_exists(f"{SAVE_DIR}/{run_name}")
-    X, Y = utils.process_dataset(DEAD_DATASET, combine_directions,
-                                 utils.labelCauseOfDeathAsCVR)
 
-    X.describe().to_csv(f"{SAVE_DIR}/{run_name}/feature_description.csv")
-    X.hist(figsize=(10, 10))
-    plt.savefig(f"{SAVE_DIR}/{run_name}/feature_hist.png")
-    plt.close()
-
-    X.corr().to_csv(f"{SAVE_DIR}/{run_name}/correlation_matrix.csv")
-    X.corrwith(Y).to_csv(f"{SAVE_DIR}/{run_name}/correlation_to_y_matrix.csv")
-
-    res = run_ml_pipeline(folding_strats, X, Y, scores, models,
+    res = run_ml_pipeline(folding_strats, DEAD_DATASET, combine_directions, scores, models,
                           normalizers, csv_columns, scoring_res, SAVE_DIR, run_name, fit_score=FIT_SCORE)
