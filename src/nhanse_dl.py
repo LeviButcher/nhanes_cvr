@@ -88,7 +88,7 @@ def build_nhanse_url(year: Tuple[int, int], data_file: str) -> str:
 
 def read_nhanse_data(location: str) -> pd.DataFrame:
     # location = PATH | URL
-    return pd.read_sas(location).set_index('SEQN')
+    return pd.read_sas(location, index="SEQN")
 
 
 def get_nhanse_mortality_dataset(nhanse_requests: List[NHANSERequest]) -> pd.DataFrame:

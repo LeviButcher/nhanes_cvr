@@ -58,13 +58,18 @@ def compose(f, g):
     return lambda x: f(g(x))
 
 
+def yearToMonths(x): return 12 * x
+
+
 def labelCauseOfDeathAsCVR(nhanse_dataset):
     # Different meanings of ucod_leading - https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
     # 1 is Diesease of heart
     # 5 is Cerebrovascular Diseases
 
-    return nhanse_dataset.apply(lambda x: 1 if x.UCOD_LEADING == 1 or
-                                x.UCOD_LEADING == 5 else 0, axis=1)
+    monthsSinceFollowUp = 326 * .5
+
+    return nhanse_dataset.apply(lambda x: 1 if x.PERMTH_EXM <= monthsSinceFollowUp and (x.UCOD_LEADING == 1 or
+                                x.UCOD_LEADING == 5) else 0, axis=1)
 
 
 def unique(list):

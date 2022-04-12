@@ -1,13 +1,11 @@
-from matplotlib import pyplot as plt
-import numpy as np
 import pandas as pd
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
 from BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 import utils
-import nhanse_dl
 from ml_pipeline import run_ml_pipeline
 from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
 from sklearn.impute import SimpleImputer
+import nhanse_dl
 
 
 # CONFIGURATION VARIABLES
@@ -95,18 +93,18 @@ normalizers = [
 ]
 
 NHANSE_DATA_FILES = [
-    nhanse_dl.NHANSERequest(
-        (1999, 2000),
-        ["LAB13.XPT", "LAB13AM.XPT", "LAB10AM.XPT", "LAB18.XPT", "CDQ.XPT", "DIQ.XPT", "BPQ.XPT",
-            "BMX.XPT", "DEMO.XPT", "BPX.XPT"]),
-    nhanse_dl.NHANSERequest(
-        (2001, 2002),
-        ["L13_B.XPT", "L13AM_B.XPT", "L10AM_B.XPT", "L10_2_B.XPT", "CDQ_B.XPT", "DIQ_B.XPT", "BPQ_B.XPT",
-            "BMX_B.XPT", "DEMO_B.XPT", "BPX_B.XPT"]),
-    nhanse_dl.NHANSERequest(
-        (2003, 2004),
-        ["L13_C.XPT", "L13AM_C.XPT", "L10AM_C.XPT", "CDQ_C.XPT", "DIQ_C.XPT", "BPQ_C.XPT", "BMX_C.XPT",
-            "DEMO_C.XPT", "BPX_C.XPT"]),
+    # nhanse_dl.NHANSERequest(
+    #     (1999, 2000),
+    #     ["LAB13.XPT", "LAB13AM.XPT", "LAB10AM.XPT", "LAB18.XPT", "CDQ.XPT", "DIQ.XPT", "BPQ.XPT",
+    #         "BMX.XPT", "DEMO.XPT", "BPX.XPT"]),
+    # nhanse_dl.NHANSERequest(
+    #     (2001, 2002),
+    #     ["L13_B.XPT", "L13AM_B.XPT", "L10AM_B.XPT", "L10_2_B.XPT", "CDQ_B.XPT", "DIQ_B.XPT", "BPQ_B.XPT",
+    #         "BMX_B.XPT", "DEMO_B.XPT", "BPX_B.XPT"]),
+    # nhanse_dl.NHANSERequest(
+    #     (2003, 2004),
+    #     ["L13_C.XPT", "L13AM_C.XPT", "L10AM_C.XPT", "CDQ_C.XPT", "DIQ_C.XPT", "BPQ_C.XPT", "BMX_C.XPT",
+    #         "DEMO_C.XPT", "BPX_C.XPT"]),
     nhanse_dl.NHANSERequest(
         (2005, 2006),
         ["TCHOL_D.XPT", "TRIGLY_D.XPT", "HDL_D.XPT", "GLU_D.XPT", "CDQ_D.XPT", "DIQ_D.XPT", "BPQ_D.XPT",
@@ -147,12 +145,16 @@ experimentConfigs = [
             "LBXTC", "Total_Chol", postProcess=meanReplacement),
         utils.CombineFeatures.rename(
             "LBDLDL", "LDL", postProcess=meanReplacement),
-        utils.CombineFeatures(
-            ["LBDLDL", "LBXHDD", "LBDHDD"], "HDL", postProcess=meanReplacement),
-        utils.CombineFeatures(
-            ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG", postProcess=meanReplacement),
+        # utils.CombineFeatures(
+        #     ["LBDHDL", "LBXHDD", "LBDHDD"], "HDL", postProcess=meanReplacement),
         utils.CombineFeatures.rename(
-            "LBXTR", "FBG", postProcess=meanReplacement),
+            "LBDHDD", "HDL", postProcess=meanReplacement),
+        # utils.CombineFeatures(
+        #     ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG", postProcess=meanReplacement),
+        utils.CombineFeatures.rename(
+            "LBXGLU", "FBG", postProcess=meanReplacement),  # glucose
+        utils.CombineFeatures.rename(
+            "LBXTR", "TG", postProcess=meanReplacement),  # triglercyides
     ]),
     utils.Experiment("classic_heart_attack", [
         utils.CombineFeatures.rename(
@@ -176,7 +178,6 @@ experimentConfigs = [
         utils.CombineFeatures.rename("RIDAGEYR", "AGE"),
     ])
 ]
-
 
 NHANSE_DATASET = nhanse_dl.get_nhanse_mortality_dataset(
     NHANSE_DATA_FILES)  # Load once
