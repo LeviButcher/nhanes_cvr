@@ -22,9 +22,11 @@ class CombineFeatures(NamedTuple):
 
     # Pure is basically the identity function for AggregateFeature
     # Only 1 Feature in and it becomes the outFeature
+    @staticmethod
     def pure(name: str, scalable: bool = True, postProcess: ProcessFeatureFunction = const):
         return CombineFeatures([name], name, scalable, postProcess)
 
+    @staticmethod
     def rename(featureName: str, newFeatureName: str, scalable: bool = True,
                postProcess: ProcessFeatureFunction = const):
         return CombineFeatures([featureName], newFeatureName, scalable, postProcess)
@@ -66,10 +68,12 @@ def labelCauseOfDeathAsCVR(nhanse_dataset):
     # 1 is Diesease of heart
     # 5 is Cerebrovascular Diseases
 
-    monthsSinceFollowUp = 326 * .5
+    # monthsSinceFollowUp = 326 * .5
 
-    return nhanse_dataset.apply(lambda x: 1 if x.PERMTH_EXM <= monthsSinceFollowUp and (x.UCOD_LEADING == 1 or
-                                x.UCOD_LEADING == 5) else 0, axis=1)
+    # return nhanse_dataset.apply(lambda x: 1 if x.PERMTH_EXM <= monthsSinceFollowUp and (x.UCOD_LEADING == 1 or
+    #                             x.UCOD_LEADING == 5) else 0, axis=1)
+
+    return nhanse_dataset.apply(lambda x: 1 if (x.UCOD_LEADING == 1 or x.UCOD_LEADING == 5) else 0, axis=1)
 
 
 def unique(list):
@@ -114,14 +118,16 @@ def combine_configs(experiment_config):
 def process_combined_features(combine_directions: List[CombineFeatures], x: pd.DataFrame) -> pd.DataFrame:
     # Do a reduce here where we return the first real value
     def keep_first_non_NAN(x): return functools.reduce(
-        lambda b, y: b if not np.isnan(b) else y, x, np.NAN)
+        lambda b, y: y if y != np.NAN else b, x, np.NAN)
 
     def combine(d: CombineFeatures, x: pd.DataFrame):
 
         series = x.loc[:, d.inFeatures].agg(keep_first_non_NAN, axis=1)
-        return d.postProcess(pd.DataFrame(series, columns=[d.feature]))
+        series.name = d.feature
+        return d.postProcess(series)
 
     res = [combine(d, x) for d in combine_directions]
+    print(res)
 
     return pd.concat(res, axis=1)
 
