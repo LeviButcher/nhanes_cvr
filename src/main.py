@@ -123,63 +123,55 @@ downloadConfig = {
 # # NOTE: NHANSE dataset early on had different variables names for some features
 # # CombineFeatures is used to combine these features into a single feature
 
-def meanReplacement(x: pd.Series) -> pd.Series:
-    res = SimpleImputer().fit_transform(pd.DataFrame(x))
-
-    x[:] = res[:, 0]  # EWWW
-    return x
-
-
-def answeredYesOnQuestion(x: pd.Series) -> pd.Series:
-    return x.map(lambda d: 1 if d == 1 else 0)
-
 
 experimentConfigs = [
     utils.Experiment("lab_work", [
         utils.CombineFeatures.rename(
-            "LBXTC", "Total_Chol", postProcess=meanReplacement),
+            "LBXTC", "Total_Chol", postProcess=utils.meanReplacement),
         utils.CombineFeatures.rename(
-            "LBDLDL", "LDL", postProcess=meanReplacement),
+            "LBDLDL", "LDL", postProcess=utils.meanReplacement),
         # utils.CombineFeatures(
-        #     ["LBDHDL", "LBXHDD", "LBDHDD"], "HDL", postProcess=meanReplacement),
+        #     ["LBDHDL", "LBXHDD", "LBDHDD"], "HDL", postProcess=utils.meanReplacement),
         utils.CombineFeatures.rename(
-            "LBDHDD", "HDL", postProcess=meanReplacement),
+            "LBDHDD", "HDL", postProcess=utils.meanReplacement),
         # utils.CombineFeatures(
-        #     ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG", postProcess=meanReplacement),
+        #     ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG", postProcess=utils.meanReplacement),
         utils.CombineFeatures.rename(
-            "LBXGLU", "FBG", postProcess=meanReplacement),  # glucose
+            "LBXGLU", "FBG", postProcess=utils.meanReplacement),  # glucose
         utils.CombineFeatures.rename(
-            "LBXTR", "TG", postProcess=meanReplacement),  # triglercyides
+            "LBXTR", "TG", postProcess=utils.meanReplacement),  # triglercyides
     ]),
     utils.Experiment("classic_heart_attack", [
         utils.CombineFeatures.rename(
-            "DIQ010", "DIABETES", False, answeredYesOnQuestion),
+            "DIQ010", "DIABETES", False, utils.answeredYesOnQuestion),
         utils.CombineFeatures.rename(
-            "BPQ020", "HYPERTEN", False, answeredYesOnQuestion),
+            "BPQ020", "HYPERTEN", False, utils.answeredYesOnQuestion),
         # utils.CombineFeatures.rename(
-        #     "CDQ001", "CHEST_PAIN", False, answeredYesOnQuestion),
+        #     "CDQ001", "CHEST_PAIN", False, utils.answeredYesOnQuestion),
     ]),
     utils.Experiment("measurements", [
         utils.CombineFeatures.rename(
-            "BMXBMI", "BMI", postProcess=meanReplacement),
+            "BMXBMI", "BMI", postProcess=utils.meanReplacement),
         utils.CombineFeatures.rename(
-            "BMXWAIST", "WC", postProcess=meanReplacement),
+            "BMXWAIST", "WC", postProcess=utils.meanReplacement),
         utils.CombineFeatures(
-            ["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC", postProcess=meanReplacement),  # Might be better to take average
+            ["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC", postProcess=utils.meanReplacement),  # Might be better to take average instead of last non NAN value
         utils.CombineFeatures(
-            ["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC", postProcess=meanReplacement),
+            ["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC", postProcess=utils.meanReplacement),
         utils.CombineFeatures.rename(
-            "RIAGENDR", "GENDER", False, answeredYesOnQuestion),
+            "RIAGENDR", "GENDER", False, utils.answeredYesOnQuestion),
         utils.CombineFeatures.rename("RIDAGEYR", "AGE"),
     ])
 ]
 
-NHANSE_DATASET = download.downloadCodebooksWithMortalityForYears(
-    downloadConfig)
-
-
+NHANSE_DATASET = utils.cache_nhanes("../data/nhanes.csv",
+                                    lambda: download.downloadCodebooksWithMortalityForYears(downloadConfig))
 LINKED_DATASET = NHANSE_DATASET.loc[NHANSE_DATASET.ELIGSTAT == 1, :]
 DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
+
+print(f"Entire Dataset: {NHANSE_DATASET.shape}")
+print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
+print(f"Dead Dataset: {DEAD_DATASET.shape}")
 
 DEAD_DATASET.describe().to_csv("../results/dead_dataset_info.csv")
 

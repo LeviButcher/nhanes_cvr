@@ -1,18 +1,19 @@
-from typing import List, Tuple
+from typing import List, Tuple, Any
 import pandas as pd
 from sklearn import model_selection, decomposition, preprocessing
 import matplotlib.pyplot as plt
 from matplotlib import pyplot as plt
 
+
 from utils import ensure_directory_exists, labelCauseOfDeathAsCVR, map_dataframe, process_dataset, scalableFeatures
 
 
-def get_class_name(x: any) -> str:
+def get_class_name(x) -> str:
     return x.__class__.__name__
 
 
-def grid_search_train_model(model: any, params: any, X: pd.DataFrame, y: pd.Series,
-                            cv: any, scoring: List[str], fit_score: str, save_dir: str):
+def grid_search_train_model(model: Any, params: Any, X: pd.DataFrame, y: pd.Series,
+                            cv: Any, scoring: List[str], fit_score: str, save_dir: str):
     print(f"      on: {model}")
     modelName = get_class_name(model)
 
@@ -28,7 +29,7 @@ def grid_search_train_model(model: any, params: any, X: pd.DataFrame, y: pd.Seri
     return model, res
 
 
-def transform_to_csv_data(modelRes: Tuple[any, dict], scoring_res: List[str]) -> List[str]:
+def transform_to_csv_data(modelRes: Tuple[Any, Any], scoring_res: List[str]) -> List[str]:
     m, res = modelRes
     best = res.best_index_
     scores = [res.cv_results_[x][best] for x in scoring_res]
@@ -52,8 +53,8 @@ def save_stats_for_cv_results(csvDataFrame, resDir, name, fit_score):
         f"{resDir}/{name}_model_results.csv")
 
 
-def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd.Series, scalableList: List[str],
-                                scoring: List[str], models: List[Tuple[any, any]], csv_columns: List[str], scoring_res: List[str], save_dir, fit_score) -> pd.DataFrame:
+def run_normalizer_cv_on_models(normalizer: Any, cv: Any, X: pd.DataFrame, Y: pd.Series, scalableList: List[str],
+                                scoring: List[str], models: List[Tuple[Any, Any]], csv_columns: List[str], scoring_res: List[str], save_dir, fit_score) -> pd.DataFrame:
     normName = get_class_name(normalizer) if normalizer else "Normal"
     stratName = get_class_name(cv)
     k = cv.get_n_splits()
@@ -73,10 +74,11 @@ def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd
         m, p, normX, Y, cv, scoring, fit_score, resDir) for m, p in models]
 
     csv_data = [transform_to_csv_data(x, scoring_res) for x in modelRes]
+    indexes = list(range(modelCount))
 
     csv_dataframe = pd.DataFrame(
-        csv_data, columns=csv_columns).assign(normalizer=pd.Series(normName, index=range(modelCount)),
-                                              foldingStrat=pd.Series(stratName, index=range(modelCount)))
+        csv_data, columns=csv_columns).assign(normalizer=pd.Series(normName, index=indexes),
+                                              foldingStrat=pd.Series(stratName, index=indexes))
 
     save_stats_for_cv_results(csv_dataframe, resDir, fullName, fit_score)
 
@@ -85,7 +87,7 @@ def run_normalizer_cv_on_models(normalizer: any, cv: any, X: pd.DataFrame, Y: pd
 # TODO Would like this to also turn back best models
 
 
-def run_ml_pipeline(folding_strats, dataset, combine_directions, scoring, models, normalizers, csv_columns,         scoring_res, save_dir, run_name, fit_score) -> List[pd.DataFrame]:
+def run_ml_pipeline(folding_strats, dataset, combine_directions, scoring, models, normalizers, csv_columns,         scoring_res, save_dir, run_name, fit_score) -> pd.DataFrame:
     # Could do threading here but need to extract maplotlib functions out
     X, Y = process_dataset(dataset, combine_directions,
                            labelCauseOfDeathAsCVR)
@@ -103,12 +105,9 @@ def run_ml_pipeline(folding_strats, dataset, combine_directions, scoring, models
     save_dir = f"{save_dir}/{run_name}"
     ensure_directory_exists(save_dir)
 
-    res = list()
-    for normalizer in normalizers:
-        for cv in folding_strats:
-            x = run_normalizer_cv_on_models(
-                normalizer, cv, X, Y, scalableList, scoring, models, csv_columns, scoring_res, save_dir, fit_score)
-            res.append(x)
+    res = [run_normalizer_cv_on_models(normalizer, cv, X, Y, scalableList, scoring, models,
+                                       csv_columns, scoring_res, save_dir, fit_score)
+           for normalizer in normalizers for cv in folding_strats]
 
     res = pd.concat(res)
 
@@ -121,7 +120,7 @@ def run_ml_pipeline(folding_strats, dataset, combine_directions, scoring, models
 
 def plot_pca(X: pd.DataFrame, Y: pd.Series, location: str):
     X_pca = decomposition.PCA().fit_transform(X)
-    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=Y)
+    plt.scatter(X_pca[:, 0], X_pca[:, 1], c=Y.tolist())
     plt.xlabel("PC1")
     plt.ylabel("PC2")
     plt.savefig(location)
@@ -137,7 +136,7 @@ def plot_fold_results(res: pd.DataFrame, save_dir: str, fit_score: str):
             models = data2.model
 
             plt.scatter(models, score, label=normName)
-        plt.xticks(models, rotation=-15, fontsize="x-small")
+            plt.xticks(models, rotation=-15, fontsize="x-small")
         plt.xlabel("Models")
         plt.ylabel(fit_score)
         plt.legend(loc="best")

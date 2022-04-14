@@ -4,8 +4,9 @@ from typing import Callable, List, Tuple
 import numpy as np
 import pandas as pd
 from scipy import stats
-from dataclasses import dataclass
 from typing import NamedTuple
+from nhanes_dl import types
+from sklearn.impute import SimpleImputer
 
 
 def const(x): return x
@@ -63,12 +64,12 @@ def compose(f, g):
 def yearToMonths(x): return 12 * x
 
 
-def labelCauseOfDeathAsCVR(nhanse_dataset):
+def labelCauseOfDeathAsCVR(nhanse_dataset: pd.DataFrame):
     # Different meanings of ucod_leading - https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
     # 1 is Diesease of heart
     # 5 is Cerebrovascular Diseases
 
-    # monthsSinceFollowUp = 326 * .5
+    # monthsSinceFollowUp = 326 * .3
 
     # return nhanse_dataset.apply(lambda x: 1 if x.PERMTH_EXM <= monthsSinceFollowUp and (x.UCOD_LEADING == 1 or
     #                             x.UCOD_LEADING == 5) else 0, axis=1)
@@ -127,7 +128,6 @@ def process_combined_features(combine_directions: List[CombineFeatures], x: pd.D
         return d.postProcess(series)
 
     res = [combine(d, x) for d in combine_directions]
-    print(res)
 
     return pd.concat(res, axis=1)
 
@@ -142,3 +142,26 @@ def process_dataset(dataset: pd.DataFrame, combineDirections: List[CombineFeatur
     X = dataset.drop(columns="Y")
 
     return X, Y
+
+
+def meanReplacement(x: pd.Series) -> pd.Series:
+    res = SimpleImputer().fit_transform(pd.DataFrame(x))
+
+    x[:] = res[:, 0]  # EWWW
+    return x
+
+
+def answeredYesOnQuestion(x: pd.Series) -> pd.Series:
+    return x.map(lambda d: 1 if d == 1 else 0)
+
+
+# Need to include this in nhanes-dl
+def cache_nhanes(cache_path: str, get_nhanse: Callable[[], types.Codebook]) -> types.Codebook:
+    from os.path import exists
+    if exists(cache_path):
+        return types.Codebook(pd.read_csv(cache_path))
+
+    else:
+        res = get_nhanse()
+        res.to_csv(cache_path)
+        return res
