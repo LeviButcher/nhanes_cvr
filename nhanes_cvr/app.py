@@ -1,9 +1,10 @@
+import nhanes_cvr.combinefeatures as cf
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
 from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
 from nhanes_dl import download, types
-import nhanes_cvr.utils as utils
 import nhanes_cvr.gridsearch as gs
+import nhanes_cvr.utils as utils
 
 
 # CONFIGURATION VARIABLES
@@ -12,28 +13,24 @@ scores = {"precision": make_scorer(precision_score, average="binary", zero_divis
           "f1": make_scorer(f1_score, average="binary", zero_division=0),
           "accuracy": make_scorer(accuracy_score)}
 scoring = scores.keys()
-scoring_types = ["train", "test"]
-scoring_res = [f"mean_{x}_{y}" for x in scoring_types for y in scoring]
-csv_columns = ["model"] + scoring_res
-SAVE_DIR = "../results"
-TARGET_SCORE = "precision"
-max_iter = 200
-
-random_state = 42
+targetScore = "precision"
+maxIter = 200
+randomState = 42
 folds = 10
-fold_repeats = 10
-folding_strats = [
+foldRepeats = 10
+
+foldingStrategies = [
     model_selection.KFold(n_splits=folds, shuffle=True,
-                          random_state=random_state),
+                          random_state=randomState),
     model_selection.StratifiedKFold(
-        n_splits=folds, shuffle=True, random_state=random_state),
+        n_splits=folds, shuffle=True, random_state=randomState),
     # BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
     # RepeatedBalancedKFold(n_splits=folds)
 ]
 
 
 models = [
-    (linear_model.LogisticRegression(random_state=random_state, max_iter=max_iter),
+    (linear_model.LogisticRegression(random_state=randomState, max_iter=maxIter),
      [
         {
             "C": [.5, 1],
@@ -47,22 +44,22 @@ models = [
         }
     ]),
 
-    (linear_model.SGDClassifier(shuffle=True, random_state=random_state),
+    (linear_model.SGDClassifier(shuffle=True, random_state=randomState),
         {"loss": ["perceptron", "log", "perceptron"], "penalty":["l1", "l2"]}),
 
-    (linear_model.RidgeClassifier(random_state=random_state), [
+    (linear_model.RidgeClassifier(random_state=randomState), [
         {"solver": [
             "sag", "svd", "lsqr", "cholesky", "sparse_cg", "sag", "saga"]},
         {"solver": ["lbfgs"], "positive": [True]}
     ]),
 
-    (ensemble.RandomForestClassifier(random_state=random_state), {
+    (ensemble.RandomForestClassifier(random_state=randomState), {
      "class_weight": [None, "balanced", "balanced_subsample"]}
      ),
 
     (neighbors.KNeighborsClassifier(), {"weights": ["uniform", "distance"]}),
 
-    (neural_network.MLPClassifier(shuffle=True, max_iter=max_iter), {
+    (neural_network.MLPClassifier(shuffle=True, max_iter=maxIter), {
      "activation": ["logistic", "tanh", "relu"],
      "solver": ["lbfgs", "sgd", "adam"],
      "learning_rate":["invscaling"]
@@ -119,49 +116,44 @@ downloadConfig = {
 }
 
 
+def replaceMissingWithNo(X):
+    return cf.replaceMissingWith(1, X)
+
+
 # # NOTE: NHANSE dataset early on had different variables names for some features
 # # CombineFeatures is used to combine these features into a single feature
-
-
-experimentConfigs = [
-    utils.Experiment("lab_work", [
-        utils.CombineFeatures.rename(
-            "LBXTC", "Total_Chol", postProcess=utils.meanReplacement),
-        utils.CombineFeatures.rename(
-            "LBDLDL", "LDL", postProcess=utils.meanReplacement),
-        utils.CombineFeatures(
-            ["LBDHDL", "LBXHDD", "LBDHDD"], "HDL", postProcess=utils.meanReplacement),
-        # utils.CombineFeatures.rename(
-        #     "LBDHDD", "HDL", postProcess=utils.meanReplacement),
-        utils.CombineFeatures(
-            ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG", postProcess=utils.meanReplacement),
-        # utils.CombineFeatures.rename(
-        #     "LBXGLU", "FBG", postProcess=utils.meanReplacement),  # glucose
-        utils.CombineFeatures.rename(
-            "LBXTR", "TG", postProcess=utils.meanReplacement),  # triglercyides
-    ]),
-    utils.Experiment("classic_heart_attack", [
-        utils.CombineFeatures.rename(
-            "DIQ010", "DIABETES", False, utils.answeredYesOnQuestion),
-        utils.CombineFeatures.rename(
-            "BPQ020", "HYPERTEN", False, utils.answeredYesOnQuestion),
-        utils.CombineFeatures.rename(
-            "CDQ001", "CHEST_PAIN", False, utils.answeredYesOnQuestion),
-    ]),
-    utils.Experiment("measurements", [
-        utils.CombineFeatures.rename(
-            "BMXBMI", "BMI", postProcess=utils.meanReplacement),
-        utils.CombineFeatures.rename(
-            "BMXWAIST", "WC", postProcess=utils.meanReplacement),
-        utils.CombineFeatures(
-            ["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC", postProcess=utils.meanReplacement),  # Might be better to take average instead of last non NAN value
-        utils.CombineFeatures(
-            ["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC", postProcess=utils.meanReplacement),
-        utils.CombineFeatures.rename(
-            "RIAGENDR", "GENDER", False, utils.answeredYesOnQuestion),
-        utils.CombineFeatures.rename("RIDAGEYR", "AGE"),
-    ])
+combine_configs = [
+    # - Lab Work -
+    cf.rename("LBXTC", "Total_Chol", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBDLDL", "LDL", postProcess=cf.meanMissingReplacement),
+    cf.create(["LBDHDL", "LBXHDD", "LBDHDD"], "HDL",
+              postProcess=cf.meanMissingReplacement),
+    # utils.CombineFeatures.rename(
+    #     "LBDHDD", "HDL", postProcess=utils.meanReplacement),
+    cf.create(["LBXSGL", "LB2GLU", "LBXGLU"], "FBG",
+              postProcess=cf.meanMissingReplacement),
+    # utils.CombineFeatures.rename(
+    #     "LBXGLU", "FBG", postProcess=utils.meanReplacement),  # glucose
+    # triglercyides
+    cf.rename("LBXTR", "TG", postProcess=cf.meanMissingReplacement),
+    # - Questionaire -
+    cf.rename(
+        "DIQ010", "DIABETES", replaceMissingWithNo),
+    cf.rename(
+        "BPQ020", "HYPERTEN", replaceMissingWithNo),
+    cf.rename(
+        "CDQ001", "CHEST_PAIN", replaceMissingWithNo),
+    # - Measurements -
+    cf.rename("BMXBMI", "BMI", postProcess=cf.meanMissingReplacement),
+    cf.rename("BMXWAIST", "WC", postProcess=cf.meanMissingReplacement),
+    cf.create(
+        ["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC", combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
+    cf.create(["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"],
+              "DIASTOLIC", combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
+    cf.rename("RIAGENDR", "GENDER", postProcess=replaceMissingWithNo),
+    cf.rename("RIDAGEYR", "AGE"),
 ]
+
 
 NHANES_DATASET = utils.cache_nhanes("./data/nhanes.csv",
                                     lambda: download.downloadCodebooksWithMortalityForYears(downloadConfig))
@@ -175,18 +167,15 @@ print(f"Dead Dataset: {DEAD_DATASET.shape}")
 
 DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
 
-experimentConfig = utils.combineExperiments(
-    "all_features", experimentConfigs)
-
-X, Y = utils.process_dataset(
-    DEAD_DATASET, experimentConfig[1], utils.labelCauseOfDeathAsCVR)
+Y = utils.labelCauseOfDeathAsCVR(DEAD_DATASET)
+X = cf.runCombines(combine_configs, DEAD_DATASET)
 
 scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
     scalers, X, withoutScalingFeatures)
 gridSearchConfigs = gs.createGridSearchConfigs(
-    models, scalingConfigs, folding_strats, [scores])
+    models, scalingConfigs, foldingStrategies, [scores])
 
-res = gs.runMultipleGridSearchAsync(gridSearchConfigs, TARGET_SCORE, X, Y)
+res = gs.runMultipleGridSearchAsync(gridSearchConfigs, targetScore, X, Y)
 resultsDF = gs.resultsToDataFrame(res)
-gs.plotResults3d(resultsDF, TARGET_SCORE)
+gs.plotResults3d(resultsDF, targetScore)
 resultsDF.to_csv("./results/results.csv")

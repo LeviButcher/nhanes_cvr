@@ -24,4 +24,4 @@ def test_combine_data_frames():
     uniqueCols = np.unique([c for _, x in l for c in x.columns])
 
     assert o.shape[0] == max([x.shape[0] for _, x in l])
-    assert all(o.columns == uniqueCols)
+    assert all(o.columns.to_numpy() == uniqueCols)
