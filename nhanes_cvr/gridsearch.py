@@ -3,7 +3,7 @@ from sklearn import preprocessing, model_selection, linear_model
 from sklearn.model_selection import GridSearchCV
 from typing import Any, Dict, List, NamedTuple, NewType, Tuple, Union
 from functools import reduce
-from utils import getClassName
+from nhanes_cvr.utils import getClassName
 
 # Sucks to have to type each one out but it makes this type safe
 Model = linear_model.LinearRegression
@@ -43,7 +43,6 @@ def addFeatures(config: ScalerConfig, features: List[str]) -> ScalerConfig:
 
 def withoutScaling(config: ScalerConfig, X: pd.DataFrame, features: List[str]):
     toScale = [x for x in X.columns if x not in features]
-    print(toScale)
     return addFeatures(config, toScale)
 
 
@@ -153,7 +152,7 @@ def plotResults3d(res: Results, score: str):
     ax.set_ylabel("Scaling")
     ax.set_zlabel(score)
     plt.legend(loc="best")
-    plt.savefig(f"../results/all_results_3d_plot.png")
+    plt.savefig(f"./results/all_results_3d_plot.png")
     plt.close()
 
 

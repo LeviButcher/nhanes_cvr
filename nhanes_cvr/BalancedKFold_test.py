@@ -1,5 +1,5 @@
 from posixpath import split
-from BalancedKFold import BalancedKFold, RepeatedBalancedKFold
+from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 import numpy as np
 import pandas as pd
 

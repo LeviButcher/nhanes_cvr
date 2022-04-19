@@ -1,12 +1,9 @@
-import pandas as pd
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
-from sklearn.impute import SimpleImputer
-from BalancedKFold import BalancedKFold, RepeatedBalancedKFold
-import utils
-from ml_pipeline import run_ml_pipeline
+from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
 from nhanes_dl import download, types
-import gridsearch as gs
+import nhanes_cvr.utils as utils
+import nhanes_cvr.gridsearch as gs
 
 
 # CONFIGURATION VARIABLES
@@ -94,15 +91,16 @@ scalers = [
 ]
 
 downloadConfig = {
-    # download.CodebookDownload(types.ContinuousNHANES.First,
-    #                           "LAB13", "LAB13AM", "LAB10AM", "LAB18", "CDQ",
-    #                           "DIQ", "BPQ", "BMX", "DEMO", "BPX"),
-    # download.CodebookDownload(types.ContinuousNHANES.Second,
-    #                           "L13_B", "L13AM_B", "L10AM_B", "L10_2_B",
-    #                           "CDQ_B", "DIQ_B", "BPQ_B", "BMX_B", "DEMO_B", "BPX_B"),
-    # download.CodebookDownload(types.ContinuousNHANES.Third,
-    #                           "L13_C", "L13AM_C", "L10AM_C", "CDQ_C", "DIQ_C",
-    #                           "BPQ_C", "BMX_C", "DEMO_C", "BPX_C"),
+    download.CodebookDownload(types.ContinuousNHANES.First,
+                              "LAB13", "LAB13AM", "LAB10AM", "LAB18", "CDQ",
+                              "DIQ", "BPQ", "BMX", "DEMO", "BPX"),
+    download.CodebookDownload(types.ContinuousNHANES.Second,
+                              "L13_B", "L13AM_B", "L10AM_B", "L10_2_B",
+                              "CDQ_B", "DIQ_B", "BPQ_B", "BMX_B", "DEMO_B", "BPX_B"),
+    download.CodebookDownload(types.ContinuousNHANES.Third,
+                              "L13_C", "L13AM_C", "L10AM_C", "CDQ_C", "DIQ_C",
+                              "BPQ_C", "BMX_C", "DEMO_C", "BPX_C"),
+    # Everything past this point has the same feature (Mostly)
     download.CodebookDownload(types.ContinuousNHANES.Fourth,
                               "TCHOL_D", "TRIGLY_D", "HDL_D", "GLU_D", "CDQ_D",
                               "DIQ_D", "BPQ_D", "BMX_D", "DEMO_D", "BPX_D"),
@@ -131,14 +129,14 @@ experimentConfigs = [
             "LBXTC", "Total_Chol", postProcess=utils.meanReplacement),
         utils.CombineFeatures.rename(
             "LBDLDL", "LDL", postProcess=utils.meanReplacement),
-        # utils.CombineFeatures(
-        #     ["LBDHDL", "LBXHDD", "LBDHDD"], "HDL", postProcess=utils.meanReplacement),
-        utils.CombineFeatures.rename(
-            "LBDHDD", "HDL", postProcess=utils.meanReplacement),
-        # utils.CombineFeatures(
-        #     ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG", postProcess=utils.meanReplacement),
-        utils.CombineFeatures.rename(
-            "LBXGLU", "FBG", postProcess=utils.meanReplacement),  # glucose
+        utils.CombineFeatures(
+            ["LBDHDL", "LBXHDD", "LBDHDD"], "HDL", postProcess=utils.meanReplacement),
+        # utils.CombineFeatures.rename(
+        #     "LBDHDD", "HDL", postProcess=utils.meanReplacement),
+        utils.CombineFeatures(
+            ["LBXSGL", "LB2GLU", "LBXGLU"], "FBG", postProcess=utils.meanReplacement),
+        # utils.CombineFeatures.rename(
+        #     "LBXGLU", "FBG", postProcess=utils.meanReplacement),  # glucose
         utils.CombineFeatures.rename(
             "LBXTR", "TG", postProcess=utils.meanReplacement),  # triglercyides
     ]),
@@ -147,8 +145,8 @@ experimentConfigs = [
             "DIQ010", "DIABETES", False, utils.answeredYesOnQuestion),
         utils.CombineFeatures.rename(
             "BPQ020", "HYPERTEN", False, utils.answeredYesOnQuestion),
-        # utils.CombineFeatures.rename(
-        #     "CDQ001", "CHEST_PAIN", False, utils.answeredYesOnQuestion),
+        utils.CombineFeatures.rename(
+            "CDQ001", "CHEST_PAIN", False, utils.answeredYesOnQuestion),
     ]),
     utils.Experiment("measurements", [
         utils.CombineFeatures.rename(
@@ -165,22 +163,21 @@ experimentConfigs = [
     ])
 ]
 
-NHANSE_DATASET = utils.cache_nhanes("../data/nhanes.csv",
+NHANES_DATASET = utils.cache_nhanes("./data/nhanes.csv",
                                     lambda: download.downloadCodebooksWithMortalityForYears(downloadConfig))
-LINKED_DATASET = NHANSE_DATASET.loc[NHANSE_DATASET.ELIGSTAT == 1, :]
+LINKED_DATASET = NHANES_DATASET.loc[NHANES_DATASET.ELIGSTAT == 1, :]
 DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
 withoutScalingFeatures = ["DIABETES", "HYPERTEN", "GENDER"]
 
-print(f"Entire Dataset: {NHANSE_DATASET.shape}")
+print(f"Entire Dataset: {NHANES_DATASET.shape}")
 print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
 print(f"Dead Dataset: {DEAD_DATASET.shape}")
 
-DEAD_DATASET.describe().to_csv("../results/dead_dataset_info.csv")
+DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
 
 experimentConfig = utils.combineExperiments(
     "all_features", experimentConfigs)
 
-# I need to drop ucod_leading from X
 X, Y = utils.process_dataset(
     DEAD_DATASET, experimentConfig[1], utils.labelCauseOfDeathAsCVR)
 
@@ -192,4 +189,4 @@ gridSearchConfigs = gs.createGridSearchConfigs(
 res = gs.runMultipleGridSearchAsync(gridSearchConfigs, TARGET_SCORE, X, Y)
 resultsDF = gs.resultsToDataFrame(res)
 gs.plotResults3d(resultsDF, TARGET_SCORE)
-resultsDF.to_csv("../results/results.csv")
+resultsDF.to_csv("./results/results.csv")
