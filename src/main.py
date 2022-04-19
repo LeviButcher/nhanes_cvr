@@ -6,6 +6,7 @@ import utils
 from ml_pipeline import run_ml_pipeline
 from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
 from nhanes_dl import download, types
+import gridsearch as gs
 
 
 # CONFIGURATION VARIABLES
@@ -18,7 +19,7 @@ scoring_types = ["train", "test"]
 scoring_res = [f"mean_{x}_{y}" for x in scoring_types for y in scoring]
 csv_columns = ["model"] + scoring_res
 SAVE_DIR = "../results"
-FIT_SCORE = "precision"
+TARGET_SCORE = "precision"
 max_iter = 200
 
 random_state = 42
@@ -29,7 +30,7 @@ folding_strats = [
                           random_state=random_state),
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=random_state),
-    BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
+    # BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
     # RepeatedBalancedKFold(n_splits=folds)
 ]
 
@@ -84,7 +85,7 @@ models = [
 ]
 
 
-normalizers = [
+scalers = [
     None,
     preprocessing.MinMaxScaler(),
     preprocessing.Normalizer(),
@@ -168,6 +169,7 @@ NHANSE_DATASET = utils.cache_nhanes("../data/nhanes.csv",
                                     lambda: download.downloadCodebooksWithMortalityForYears(downloadConfig))
 LINKED_DATASET = NHANSE_DATASET.loc[NHANSE_DATASET.ELIGSTAT == 1, :]
 DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
+withoutScalingFeatures = ["DIABETES", "HYPERTEN", "GENDER"]
 
 print(f"Entire Dataset: {NHANSE_DATASET.shape}")
 print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
@@ -175,13 +177,19 @@ print(f"Dead Dataset: {DEAD_DATASET.shape}")
 
 DEAD_DATASET.describe().to_csv("../results/dead_dataset_info.csv")
 
-experimentConfigs = [utils.combineExperiments(
-    "all_features", experimentConfigs)]
+experimentConfig = utils.combineExperiments(
+    "all_features", experimentConfigs)
 
+# I need to drop ucod_leading from X
+X, Y = utils.process_dataset(
+    DEAD_DATASET, experimentConfig[1], utils.labelCauseOfDeathAsCVR)
 
-for run_name, combine_directions in experimentConfigs:
-    print(f"Experiment: {run_name}")
-    utils.ensure_directory_exists(f"{SAVE_DIR}/{run_name}")
+scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
+    scalers, X, withoutScalingFeatures)
+gridSearchConfigs = gs.createGridSearchConfigs(
+    models, scalingConfigs, folding_strats, [scores])
 
-    res = run_ml_pipeline(folding_strats, DEAD_DATASET, combine_directions, scores, models,
-                          normalizers, csv_columns, scoring_res, SAVE_DIR, run_name, fit_score=FIT_SCORE)
+res = gs.runMultipleGridSearchAsync(gridSearchConfigs, TARGET_SCORE, X, Y)
+resultsDF = gs.resultsToDataFrame(res)
+gs.plotResults3d(resultsDF, TARGET_SCORE)
+resultsDF.to_csv("../results/results.csv")

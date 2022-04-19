@@ -12,6 +12,10 @@ from sklearn.impute import SimpleImputer
 def const(x): return x
 
 
+def getClassName(x) -> str:
+    return x.__class__.__name__
+
+
 ProcessFeatureFunction = Callable[[pd.Series], pd.Series]
 
 
