@@ -1,0 +1,19 @@
+,inFeatures,outFeature,combinationStrategy,postProcessing
+0,['LBXTC'],Total_Chol,firstNonNullCombine,meanMissingReplacement
+1,['LBDLDL'],LDL,firstNonNullCombine,meanMissingReplacement
+2,"['LBDHDL', 'LBXHDD', 'LBDHDD']",HDL,firstNonNullCombine,meanMissingReplacement
+3,"['LBXSGL', 'LB2GLU', 'LBXGLU']",FBG,firstNonNullCombine,meanMissingReplacement
+4,['LBXTR'],TG,firstNonNullCombine,meanMissingReplacement
+5,['DIQ010'],DIABETES,firstNonNullCombine,standardYesNoProcessor
+6,['DIQ170'],TOLD_AT_RISK_OF_DIABETES,firstNonNullCombine,standardYesNoProcessor
+7,['DIQ200A'],CONTROLLING_WEIGHT,firstNonNullCombine,standardYesNoProcessor
+8,['BPQ020'],HIGH_BLOOD_PRESSURE,firstNonNullCombine,standardYesNoProcessor
+9,['BPQ030'],HIGH_BLOOD_PRESSURE_TWO_OR_MORE,firstNonNullCombine,standardYesNoProcessor
+10,['BPQ050A'],TAKEN_DRUGS_FOR_HYPERTEN,firstNonNullCombine,standardYesNoProcessor
+11,['CDQ001'],CHEST_PAIN,firstNonNullCombine,standardYesNoProcessor
+12,['BMXBMI'],BMI,firstNonNullCombine,meanMissingReplacement
+13,['BMXWAIST'],WC,firstNonNullCombine,meanMissingReplacement
+14,"['BPXSY1', 'BPXSY2', 'BPXSY3', 'BPXSY4']",SYSTOLIC,meanCombine,meanMissingReplacement
+15,"['BPXDI1', 'BPXDI2', 'BPXDI3', 'BPXDI4']",DIASTOLIC,meanCombine,meanMissingReplacement
+16,['RIAGENDR'],GENDER,firstNonNullCombine,noProcessing
+17,['RIDAGEYR'],AGE,firstNonNullCombine,noProcessing

@@ -1,3 +1,5 @@
+import matplotlib
+import matplotlib.pyplot as plt
 import nhanes_cvr.combinefeatures as cf
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
 from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
@@ -5,6 +7,7 @@ from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_sco
 from nhanes_dl import download, types
 import nhanes_cvr.gridsearch as gs
 import nhanes_cvr.utils as utils
+import seaborn as sns
 
 
 # CONFIGURATION VARIABLES
@@ -12,9 +15,8 @@ scores = {"precision": make_scorer(precision_score, average="binary", zero_divis
           "recall": make_scorer(recall_score, average="binary", zero_division=0),
           "f1": make_scorer(f1_score, average="binary", zero_division=0),
           "accuracy": make_scorer(accuracy_score)}
-scoring = scores.keys()
 targetScore = "precision"
-maxIter = 200
+maxIter = 500
 randomState = 42
 folds = 10
 foldRepeats = 10
@@ -24,13 +26,14 @@ foldingStrategies = [
                           random_state=randomState),
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=randomState),
-    # BalancedKFold(n_splits=folds, shuffle=True, random_state=random_state),
+    BalancedKFold(n_splits=folds, shuffle=True, random_state=randomState),
     # RepeatedBalancedKFold(n_splits=folds)
 ]
 
 
+# Store Model in Thunks to ensure recreation of new model every GridSearch
 models = [
-    (linear_model.LogisticRegression(random_state=randomState, max_iter=maxIter),
+    (lambda: linear_model.LogisticRegression(random_state=randomState, max_iter=maxIter),
      [
         {
             "C": [.5, 1],
@@ -44,28 +47,29 @@ models = [
         }
     ]),
 
-    (linear_model.SGDClassifier(shuffle=True, random_state=randomState),
+    (lambda: linear_model.SGDClassifier(shuffle=True, random_state=randomState),
         {"loss": ["perceptron", "log", "perceptron"], "penalty":["l1", "l2"]}),
 
-    (linear_model.RidgeClassifier(random_state=randomState), [
+    (lambda: linear_model.RidgeClassifier(random_state=randomState), [
         {"solver": [
             "sag", "svd", "lsqr", "cholesky", "sparse_cg", "sag", "saga"]},
         {"solver": ["lbfgs"], "positive": [True]}
     ]),
 
-    (ensemble.RandomForestClassifier(random_state=randomState), {
+    (lambda: ensemble.RandomForestClassifier(random_state=randomState), {
      "class_weight": [None, "balanced", "balanced_subsample"]}
      ),
 
-    (neighbors.KNeighborsClassifier(), {"weights": ["uniform", "distance"]}),
+    (lambda: neighbors.KNeighborsClassifier(),
+     {"weights": ["uniform", "distance"]}),
 
-    (neural_network.MLPClassifier(shuffle=True, max_iter=maxIter), {
+    (lambda: neural_network.MLPClassifier(shuffle=True, max_iter=maxIter), {
      "activation": ["logistic", "tanh", "relu"],
      "solver": ["lbfgs", "sgd", "adam"],
      "learning_rate":["invscaling"]
      }),
 
-    (svm.LinearSVC(random_state=42), [
+    (lambda: svm.LinearSVC(random_state=42), [
         {
             "loss": ["hinge"],
             "penalty": ['l2'],
@@ -116,50 +120,66 @@ downloadConfig = {
 }
 
 
+# Gotta check to make sure "no" is 2
 def replaceMissingWithNo(X):
-    return cf.replaceMissingWith(1, X)
+    return cf.replaceMissingWith(2, X)
+
+
+def standardYesNoProcessor(X):
+    return X.apply(lambda x: 1 if x == 1 else 0)
 
 
 # # NOTE: NHANSE dataset early on had different variables names for some features
 # # CombineFeatures is used to combine these features into a single feature
-combine_configs = [
-    # - Lab Work -
+combineConfigs = [
+    # --- Lab Work ---
     cf.rename("LBXTC", "Total_Chol", postProcess=cf.meanMissingReplacement),
     cf.rename("LBDLDL", "LDL", postProcess=cf.meanMissingReplacement),
     cf.create(["LBDHDL", "LBXHDD", "LBDHDD"], "HDL",
               postProcess=cf.meanMissingReplacement),
-    # utils.CombineFeatures.rename(
-    #     "LBDHDD", "HDL", postProcess=utils.meanReplacement),
     cf.create(["LBXSGL", "LB2GLU", "LBXGLU"], "FBG",
               postProcess=cf.meanMissingReplacement),
-    # utils.CombineFeatures.rename(
-    #     "LBXGLU", "FBG", postProcess=utils.meanReplacement),  # glucose
     # triglercyides
     cf.rename("LBXTR", "TG", postProcess=cf.meanMissingReplacement),
-    # - Questionaire -
+    # --- Questionaire ---
+    cf.rename("DIQ010", "DIABETES", postProcess=standardYesNoProcessor),
+    cf.rename("DIQ170", "TOLD_AT_RISK_OF_DIABETES",
+              postProcess=standardYesNoProcessor),
+    cf.rename("DIQ200A", "CONTROLLING_WEIGHT",
+              postProcess=standardYesNoProcessor),
     cf.rename(
-        "DIQ010", "DIABETES", replaceMissingWithNo),
+        "BPQ020", "HIGH_BLOOD_PRESSURE", postProcess=standardYesNoProcessor),
+    cf.rename("BPQ030", "HIGH_BLOOD_PRESSURE_TWO_OR_MORE",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ050A", "TAKEN_DRUGS_FOR_HYPERTEN",
+              postProcess=standardYesNoProcessor),
     cf.rename(
-        "BPQ020", "HYPERTEN", replaceMissingWithNo),
-    cf.rename(
-        "CDQ001", "CHEST_PAIN", replaceMissingWithNo),
-    # - Measurements -
+        "CDQ001", "CHEST_PAIN", postProcess=standardYesNoProcessor),
+    # cf.rename("DBQ700", "HEALTHY_DIET") # Not in 1999
+    # --- Measurements ---
     cf.rename("BMXBMI", "BMI", postProcess=cf.meanMissingReplacement),
     cf.rename("BMXWAIST", "WC", postProcess=cf.meanMissingReplacement),
-    cf.create(
-        ["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC", combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
-    cf.create(["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"],
-              "DIASTOLIC", combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
-    cf.rename("RIAGENDR", "GENDER", postProcess=replaceMissingWithNo),
+    cf.create(["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC",
+              combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
+    cf.create(["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC",
+              combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
+    cf.rename("RIAGENDR", "GENDER"),
     cf.rename("RIDAGEYR", "AGE"),
 ]
 
-
+# Download NHANES
 NHANES_DATASET = utils.cache_nhanes("./data/nhanes.csv",
                                     lambda: download.downloadCodebooksWithMortalityForYears(downloadConfig))
+
+# Process NHANES
 LINKED_DATASET = NHANES_DATASET.loc[NHANES_DATASET.ELIGSTAT == 1, :]
 DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
-withoutScalingFeatures = ["DIABETES", "HYPERTEN", "GENDER"]
+# withoutScalingFeatures = ["DIABETES", "HYPERTEN", "GENDER"]
+withoutScalingFeatures = [
+    c.combinedName for c in combineConfigs if c.postProcess.__name__ == standardYesNoProcessor.__name__]
+
+
+print(f"Not Scaling: {withoutScalingFeatures}")
 
 print(f"Entire Dataset: {NHANES_DATASET.shape}")
 print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
@@ -167,15 +187,40 @@ print(f"Dead Dataset: {DEAD_DATASET.shape}")
 
 DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
 
-Y = utils.labelCauseOfDeathAsCVR(DEAD_DATASET)
-X = cf.runCombines(combine_configs, DEAD_DATASET)
+dataset = DEAD_DATASET  # Quickly allows running on other datasets
 
+ccDF = cf.combineFeaturesToDataFrame(combineConfigs)
+ccDF.to_csv("./results/combineFeatures.csv")
+
+Y = utils.labelCauseOfDeathAsCVR(dataset)
+X = cf.runCombines(combineConfigs, dataset)
+
+# Setup Configs
 scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
     scalers, X, withoutScalingFeatures)
+
 gridSearchConfigs = gs.createGridSearchConfigs(
     models, scalingConfigs, foldingStrategies, [scores])
 
+# Run Training
 res = gs.runMultipleGridSearchAsync(gridSearchConfigs, targetScore, X, Y)
+
+# Evaluate Results
 resultsDF = gs.resultsToDataFrame(res)
 gs.plotResults3d(resultsDF, targetScore)
 resultsDF.to_csv("./results/results.csv")
+
+print("\n--- FINISHED ---\n")
+print(f"Ran {len(gridSearchConfigs)} Configs")
+gs.printBestResult(res)
+
+
+# Start of correlation feature selection
+# TODO Follow article: https://towardsdatascience.com/feature-selection-with-pandas-e3690ad8504b
+plt.figure(figsize=(12, 10))
+cor = DEAD_DATASET.corr()
+# sns.heatmap(cor, annot=True, cmap=plt.cm.Reds)
+cor_target = abs(cor["MEDV"])
+relevant_features = cor_target[cor_target > 0.5]
+print(relevant_features)
+# plt.show()

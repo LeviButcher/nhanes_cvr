@@ -60,3 +60,7 @@ def runCombine(combine: CombineFeatures, X: pd.DataFrame) -> pd.Series:
 def runCombines(combines: List[CombineFeatures], X: pd.DataFrame) -> pd.DataFrame:
     # Don't keep index, caller should decide if indexing should happen
     return pd.concat([runCombine(c, X) for c in combines], axis=1)
+
+
+def combineFeaturesToDataFrame(combines: List[CombineFeatures]) -> pd.DataFrame:
+    return pd.DataFrame([[f, n, cs.__name__, pp.__name__] for f, n, cs, pp in combines], columns=["inFeatures", "outFeature", "combinationStrategy", "postProcessing"])

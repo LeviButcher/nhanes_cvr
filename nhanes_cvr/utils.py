@@ -1,18 +1,19 @@
 import functools
 import os
-from typing import Callable, List, Tuple
+from typing import Callable
 import numpy as np
 import pandas as pd
 from scipy import stats
-from typing import NamedTuple
 from nhanes_dl import types
-from sklearn.impute import SimpleImputer
 
 
 def const(x): return x
 
 
 def getClassName(x) -> str:
+    if x is None:
+        return "None"
+
     return x.__class__.__name__
 
 
@@ -32,17 +33,18 @@ def labelCauseOfDeathAsCVR(nhanse_dataset: pd.DataFrame) -> pd.Series:
     # 1 is Diesease of heart
     # 5 is Cerebrovascular Diseases
 
+    def isCVR(X): return X.UCOD_LEADING == 1 or X.UCOD_LEADING == 5
+
     monthsSinceFollowUp = 326 * .5
     return nhanse_dataset.agg(lambda x: 1 if x.PERMTH_EXM <= monthsSinceFollowUp
-                              and (x.UCOD_LEADING == 1 or
-                                   x.UCOD_LEADING == 5) else 0, axis=1)
+                              and isCVR(x) else 0, axis=1)
 
-    # return nhanse_dataset.agg(lambda x: 1 if (x.UCOD_LEADING == 1 or x.UCOD_LEADING == 5) else 0, axis=1)
+    # return nhanse_dataset.agg(isCVR, axis=1)
 
 
-def unique(list):
+def unique(xs):
     return functools.reduce(
-        lambda l, x: l if x in l else l + [x], list, [])
+        lambda l, x: l if x in l else l + [x], xs, [])
 
 
 def ensure_directory_exists(path):

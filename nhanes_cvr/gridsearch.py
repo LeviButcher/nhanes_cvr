@@ -1,12 +1,12 @@
 import pandas as pd
 from sklearn import preprocessing, model_selection, linear_model
 from sklearn.model_selection import GridSearchCV
-from typing import Any, Dict, List, NamedTuple, NewType, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, NewType, Tuple, Union, Callable
 from functools import reduce
 from nhanes_cvr.utils import getClassName
 
 # Sucks to have to type each one out but it makes this type safe
-Model = linear_model.LinearRegression
+Model = Callable[[], linear_model.LinearRegression]
 Scaler = Union[preprocessing.MaxAbsScaler, preprocessing.MinMaxScaler]
 Folding = Union[model_selection.KFold,  model_selection.StratifiedKFold]
 ModelParams = Dict[str, List[Any]]
@@ -66,7 +66,10 @@ class GridSearchConfig(NamedTuple):
     scoring: Scoring
 
     def __str__(self):
-        return f"{getClassName(self.model)} - {getClassName(self.scalerConfig.scaler)} - {getClassName(self.folding)}"
+        return f"{getClassName(self.model())} - {getClassName(self.scalerConfig.scaler)} - {getClassName(self.folding)}"
+
+
+GridSearchRun = Tuple[GridSearchConfig, FittedGridSearch]
 
 
 def runGridSearch(config: GridSearchConfig, target: str, X: pd.DataFrame, Y: pd.Series) -> FittedGridSearch:
@@ -76,18 +79,18 @@ def runGridSearch(config: GridSearchConfig, target: str, X: pd.DataFrame, Y: pd.
     scaled = runScaling(config.scalerConfig, X, Y)
 
     res = GridSearchCV(
-        estimator=config.model, param_grid=config.modelParams, cv=config.folding,
+        estimator=config.model(), param_grid=config.modelParams, cv=config.folding,
         refit=target, scoring=config.scoring, return_train_score=True,
         n_jobs=10)
 
     return res.fit(scaled, Y)
 
 
-def runMultipleGridSearchs(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series) -> List[Tuple[GridSearchConfig, FittedGridSearch]]:
+def runMultipleGridSearchs(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series) -> List[GridSearchRun]:
     return [(c, runGridSearch(c, target, X, Y)) for c in configs]
 
 
-def runMultipleGridSearchAsync(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series, ) -> List[Tuple[GridSearchConfig, FittedGridSearch]]:
+def runMultipleGridSearchAsync(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series, ) -> List[GridSearchRun]:
     import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -107,21 +110,21 @@ def createGridSearchConfigs(modelConfigs: List[Tuple[Model, ModelParams]],
             ]
 
 
-def resultsStoredForConfig(config: GridSearchConfig) -> List[str]:
+def resultsScores(result: FittedGridSearch) -> List[str]:
     """
     Returns List of all names of results stored in FittedGridSearch
     """
     types = ["test", "train"]
 
-    return [f"mean_{x}_{y}" for x in types for y in config.scoring]
+    return [f"mean_{t}_{score}" for t in types for score in list(result.scorer_)]
 
 
 def resultToDataFrame(config: GridSearchConfig, res: FittedGridSearch) -> Results:
     best = res.best_index_
-
-    names = resultsStoredForConfig(config)
+    # Could add scoring method to df
+    names = resultsScores(res)
     runInfo = [getClassName(x)
-               for x in [config.model, config.scalerConfig.scaler, config.folding]]
+               for x in [config.model(), config.scalerConfig.scaler, config.folding]]
     row = runInfo + [res.cv_results_[x][best] for x in names]
     columns = ["model", "scaler", "folding"] + names
 
@@ -156,6 +159,24 @@ def plotResults3d(res: Results, score: str):
     plt.close()
 
 
-def get_best(results: List[Tuple[GridSearchConfig, FittedGridSearch]]) -> Tuple[GridSearchConfig, FittedGridSearch]:
+def getBestResult(results: List[GridSearchRun]) -> GridSearchRun:
+    def compare(a: GridSearchRun, b: GridSearchRun):
+        return a if a[1].best_score_ > b[1].best_score_ else b
 
-    return results[0]
+    return reduce(compare, results)
+
+
+def printResult(result: GridSearchRun) -> None:
+    conf, res = result
+    print(f"Config = {conf}")
+    print(f"Best Score: {res.best_score_} using {res.refit}")
+    scores = resultsScores(res)
+    scoreValues = [res.cv_results_[x][res.best_index_] for x in scores]
+    print(list(zip(scores, scoreValues)))
+
+    return
+
+
+def printBestResult(results: List[GridSearchRun]):
+    best = getBestResult(results)
+    printResult(best)
