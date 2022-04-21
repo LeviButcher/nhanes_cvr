@@ -4,6 +4,10 @@ from sklearn.model_selection import GridSearchCV
 from typing import Any, Dict, List, NamedTuple, NewType, Tuple, Union, Callable
 from functools import reduce
 from nhanes_cvr.utils import getClassName
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+sns.set(style="darkgrid")
 
 # Sucks to have to type each one out but it makes this type safe
 Model = Callable[[], linear_model.LinearRegression]
@@ -31,6 +35,11 @@ def createScalerConfigs(scalers: List[Scaler], features: List[str]) -> List[Scal
 
 def createScalerConfigsIgnoreFeatures(scalers: List[Scaler], X: pd.DataFrame, features: List[str]) -> List[ScalerConfig]:
     return [withoutScaling(emptyConfig(s), X, features) for s in scalers]
+
+
+def createScalerAllFeatures(scalers: List[Scaler], X: pd.DataFrame):
+    print(X.columns)
+    return [addFeatures(emptyConfig(s), list(X.columns)) for s in scalers]
 
 
 def addFeature(config: ScalerConfig, feature: str) -> ScalerConfig:
@@ -90,7 +99,7 @@ def runMultipleGridSearchs(configs: List[GridSearchConfig], target: str, X: pd.D
     return [(c, runGridSearch(c, target, X, Y)) for c in configs]
 
 
-def runMultipleGridSearchAsync(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series, ) -> List[GridSearchRun]:
+def runMultipleGridSearchsAsync(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series, ) -> List[GridSearchRun]:
     import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -136,8 +145,7 @@ def resultsToDataFrame(results: List[Tuple[GridSearchConfig, FittedGridSearch]])
     return Results(pd.concat(res, ignore_index=True))
 
 
-def plotResults3d(res: Results, score: str):
-    import matplotlib.pyplot as plt
+def plotResults3d(res: Results, score: str, savePath: str):
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')
     normEncoder = preprocessing.LabelEncoder()
@@ -155,7 +163,7 @@ def plotResults3d(res: Results, score: str):
     ax.set_ylabel("Scaling")
     ax.set_zlabel(score)
     plt.legend(loc="best")
-    plt.savefig(f"./results/all_results_3d_plot.png")
+    plt.savefig(savePath)
     plt.close()
 
 
@@ -180,3 +188,11 @@ def printResult(result: GridSearchRun) -> None:
 def printBestResult(results: List[GridSearchRun]):
     best = getBestResult(results)
     printResult(best)
+
+
+def plotResultsGroupByFold(res: Results, score: str, savePath: str):
+    # Not working all the way yet
+    grid = sns.FacetGrid(res, col="folding", hue="scaler", col_wrap=5)
+    grid.map(sns.scatterplot, "model", f"mean_test_{score}")
+    grid.add_legend()
+    grid.savefig(f"{savePath}")

@@ -1,5 +1,7 @@
+from typing import List
 import matplotlib
 import matplotlib.pyplot as plt
+import pandas as pd
 import nhanes_cvr.combinefeatures as cf
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
 from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
@@ -120,7 +122,7 @@ downloadConfig = {
 }
 
 
-# Gotta check to make sure "no" is 2
+# "No" is as far as I've seen equal to 2
 def replaceMissingWithNo(X):
     return cf.replaceMissingWith(2, X)
 
@@ -174,53 +176,77 @@ NHANES_DATASET = utils.cache_nhanes("./data/nhanes.csv",
 # Process NHANES
 LINKED_DATASET = NHANES_DATASET.loc[NHANES_DATASET.ELIGSTAT == 1, :]
 DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
-# withoutScalingFeatures = ["DIABETES", "HYPERTEN", "GENDER"]
-withoutScalingFeatures = [
-    c.combinedName for c in combineConfigs if c.postProcess.__name__ == standardYesNoProcessor.__name__]
-
-
-print(f"Not Scaling: {withoutScalingFeatures}")
 
 print(f"Entire Dataset: {NHANES_DATASET.shape}")
 print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
 print(f"Dead Dataset: {DEAD_DATASET.shape}")
-
 DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
 
 dataset = DEAD_DATASET  # Quickly allows running on other datasets
 
-ccDF = cf.combineFeaturesToDataFrame(combineConfigs)
-ccDF.to_csv("./results/combineFeatures.csv")
-
-Y = utils.labelCauseOfDeathAsCVR(dataset)
-X = cf.runCombines(combineConfigs, dataset)
-
-# Setup Configs
-scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
-    scalers, X, withoutScalingFeatures)
-
-gridSearchConfigs = gs.createGridSearchConfigs(
-    models, scalingConfigs, foldingStrategies, [scores])
-
-# Run Training
-res = gs.runMultipleGridSearchAsync(gridSearchConfigs, targetScore, X, Y)
-
-# Evaluate Results
-resultsDF = gs.resultsToDataFrame(res)
-gs.plotResults3d(resultsDF, targetScore)
-resultsDF.to_csv("./results/results.csv")
-
-print("\n--- FINISHED ---\n")
-print(f"Ran {len(gridSearchConfigs)} Configs")
-gs.printBestResult(res)
+# Should expose API for this in nhanes-dl
+mortalityCols = [x for x in download.mortality_colnames
+                 if x not in download.drop_columns]
+withoutScalingFeatures = [
+    c.combinedName for c in combineConfigs if c.postProcess.__name__ == standardYesNoProcessor.__name__]
+print(f"Not Scaling: {withoutScalingFeatures}")
 
 
-# Start of correlation feature selection
-# TODO Follow article: https://towardsdatascience.com/feature-selection-with-pandas-e3690ad8504b
-plt.figure(figsize=(12, 10))
-cor = DEAD_DATASET.corr()
-# sns.heatmap(cor, annot=True, cmap=plt.cm.Reds)
-cor_target = abs(cor["MEDV"])
-relevant_features = cor_target[cor_target > 0.5]
-print(relevant_features)
-# plt.show()
+# --- HAND PICKED FEATURES TRAINING ---
+
+
+def runHandPickedFeatures():
+    runName = "handpicked"
+    ccDF = cf.combineFeaturesToDataFrame(combineConfigs)
+    ccDF.to_csv("./results/combineFeatures.csv")
+
+    X = cf.runCombines(combineConfigs, dataset)
+    Y = utils.labelCauseOfDeathAsCVR(dataset)
+
+    scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
+        scalers, X, withoutScalingFeatures)
+    runGridSearch(X, Y, scalingConfigs, runName)
+
+
+# --- CORRELATION TRAINING ---
+def runCorrelationFeatureSelection():
+    runName = "correlation"
+
+    # Correlation Selection
+    # Followed article: https://towardsdatascience.com/feature-selection-with-pandas-e3690ad8504b
+    filteredDataset = dataset.assign(
+        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)
+    cor = filteredDataset.corr()
+    cor_target = abs(cor["Y"])[:-1]
+    threshold = 0.1
+    relevant_features = cor_target[cor_target > threshold]
+
+    relevant_features.to_csv(f"./results/{runName}_correlatedFeatures.csv")
+
+    X = filteredDataset.loc[:, relevant_features.index.values]
+    X = X.fillna(X.mean())
+    Y = filteredDataset.Y
+
+    scalingConfigs = gs.createScalerAllFeatures(scalers, X)
+    runGridSearch(X, Y, scalingConfigs, runName)
+
+
+# Abstract function to quickly run the gridSearchs using different X/Y/scalingConfigs
+def runGridSearch(X: pd.DataFrame, Y: pd.Series, scalingConfigs: List[gs.ScalerConfig], runName: str):
+    gridSearchConfigs = gs.createGridSearchConfigs(
+        models, scalingConfigs, foldingStrategies, [scores])
+
+    # Run Training
+    res = gs.runMultipleGridSearchs(gridSearchConfigs, targetScore, X, Y)
+
+    # Evaluate Results
+    resultsDF = gs.resultsToDataFrame(res)
+    gs.plotResultsGroupByFold(resultsDF, targetScore,
+                              f"./results/{runName}_plotResults2d")
+    gs.plotResults3d(resultsDF, targetScore,
+                     f"./results/{runName}_plotResults3d")
+    resultsDF.to_csv(f"./results/{runName}_results.csv")
+
+    print("\n--- FINISHED ---\n")
+    print(f"Ran {len(gridSearchConfigs)} Configs")
+    gs.printBestResult(res)
