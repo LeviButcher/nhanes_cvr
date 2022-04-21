@@ -146,12 +146,17 @@ def resultsToDataFrame(results: List[Tuple[GridSearchConfig, FittedGridSearch]])
 
 
 def plotResults3d(res: Results, score: str, savePath: str):
-    fig = plt.figure(figsize=(10, 10))
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     normEncoder = preprocessing.LabelEncoder()
     modelEncoder = preprocessing.LabelEncoder()
     res = Results(res.assign(scaler_enc=normEncoder.fit_transform(res.scaler),
                              model_enc=modelEncoder.fit_transform(res.model)))
+
+    # x = res.model_enc
+    # y = res.scaler_enc
+    # z = res[f"mean_test{score}"]
+    # ax.scatter(x, y, z, hue=res.folding)
 
     for foldName, data in res.groupby(['folding']):
         scores = data[f"mean_test_{score}"]
@@ -190,9 +195,9 @@ def printBestResult(results: List[GridSearchRun]):
     printResult(best)
 
 
-def plotResultsGroupByFold(res: Results, score: str, savePath: str):
+def plotResultsGroupedByModel(res: Results, score: str, savePath: str):
     # Not working all the way yet
-    grid = sns.FacetGrid(res, col="folding", hue="scaler", col_wrap=5)
-    grid.map(sns.scatterplot, "model", f"mean_test_{score}")
+    grid = sns.FacetGrid(res, col="model", hue="scaler", col_wrap=3)
+    grid.map(sns.scatterplot, "folding", f"mean_test_{score}")
     grid.add_legend()
-    grid.savefig(f"{savePath}")
+    grid.savefig(f"{savePath}_{score}")

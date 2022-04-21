@@ -1,6 +1,4 @@
 from typing import List
-import matplotlib
-import matplotlib.pyplot as plt
 import pandas as pd
 import nhanes_cvr.combinefeatures as cf
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
@@ -9,7 +7,6 @@ from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_sco
 from nhanes_dl import download, types
 import nhanes_cvr.gridsearch as gs
 import nhanes_cvr.utils as utils
-import seaborn as sns
 
 
 # CONFIGURATION VARIABLES
@@ -122,17 +119,14 @@ downloadConfig = {
 }
 
 
-# "No" is as far as I've seen equal to 2
-def replaceMissingWithNo(X):
-    return cf.replaceMissingWith(2, X)
-
-
 def standardYesNoProcessor(X):
     return X.apply(lambda x: 1 if x == 1 else 0)
 
 
 # # NOTE: NHANSE dataset early on had different variables names for some features
 # # CombineFeatures is used to combine these features into a single feature
+
+# Should set up postProcess to drop rows if postProcess returns a smaller series
 combineConfigs = [
     # --- Lab Work ---
     cf.rename("LBXTC", "Total_Chol", postProcess=cf.meanMissingReplacement),
@@ -187,6 +181,7 @@ dataset = DEAD_DATASET  # Quickly allows running on other datasets
 # Should expose API for this in nhanes-dl
 mortalityCols = [x for x in download.mortality_colnames
                  if x not in download.drop_columns]
+# Hackish way to detect which features to not scale (YesNo Processor indicates categorical)
 withoutScalingFeatures = [
     c.combinedName for c in combineConfigs if c.postProcess.__name__ == standardYesNoProcessor.__name__]
 print(f"Not Scaling: {withoutScalingFeatures}")
@@ -209,16 +204,18 @@ def runHandPickedFeatures():
 
 
 # --- CORRELATION TRAINING ---
+
+
 def runCorrelationFeatureSelection():
     runName = "correlation"
+    threshold = 0.1
 
     # Correlation Selection
     # Followed article: https://towardsdatascience.com/feature-selection-with-pandas-e3690ad8504b
     filteredDataset = dataset.assign(
         Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)
     cor = filteredDataset.corr()
-    cor_target = abs(cor["Y"])[:-1]
-    threshold = 0.1
+    cor_target = abs(cor["Y"])[:-1]  # Cut off Y correlation with -1
     relevant_features = cor_target[cor_target > threshold]
 
     relevant_features.to_csv(f"./results/{runName}_correlatedFeatures.csv")
@@ -233,20 +230,22 @@ def runCorrelationFeatureSelection():
 
 # Abstract function to quickly run the gridSearchs using different X/Y/scalingConfigs
 def runGridSearch(X: pd.DataFrame, Y: pd.Series, scalingConfigs: List[gs.ScalerConfig], runName: str):
+    # Create Configs
     gridSearchConfigs = gs.createGridSearchConfigs(
         models, scalingConfigs, foldingStrategies, [scores])
 
     # Run Training
     res = gs.runMultipleGridSearchs(gridSearchConfigs, targetScore, X, Y)
-
-    # Evaluate Results
     resultsDF = gs.resultsToDataFrame(res)
-    gs.plotResultsGroupByFold(resultsDF, targetScore,
-                              f"./results/{runName}_plotResults2d")
+
+    # Save Plots
+    [gs.plotResultsGroupedByModel(
+        resultsDF, s, f"./results/{runName}_groupedModelPlots") for s in scores.keys()]
     gs.plotResults3d(resultsDF, targetScore,
                      f"./results/{runName}_plotResults3d")
     resultsDF.to_csv(f"./results/{runName}_results.csv")
 
+    # Output Best Info
     print("\n--- FINISHED ---\n")
-    print(f"Ran {len(gridSearchConfigs)} Configs")
+    print(f"Ran {len(res)} Configs")
     gs.printBestResult(res)
