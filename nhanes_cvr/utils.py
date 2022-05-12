@@ -1,13 +1,8 @@
-import functools
-import os
 from typing import Callable
 import numpy as np
 import pandas as pd
 from scipy import stats
 from nhanes_dl import types
-
-
-def const(x): return x
 
 
 def getClassName(x) -> str:
@@ -17,12 +12,8 @@ def getClassName(x) -> str:
     return x.__class__.__name__
 
 
-def toUpperCase(l):
+def toUpperCase(l: list[str]) -> list[str]:
     return list(map(lambda l: l.upper(), l))
-
-
-def compose(f, g):
-    return lambda x: f(g(x))
 
 
 def yearToMonths(x): return 12 * x
@@ -42,28 +33,16 @@ def labelCauseOfDeathAsCVR(nhanse_dataset: pd.DataFrame) -> pd.Series:
     # return nhanse_dataset.agg(isCVR, axis=1)
 
 
-def unique(xs):
-    return functools.reduce(
-        lambda l, x: l if x in l else l + [x], xs, [])
-
-
-def ensure_directory_exists(path):
-    try:
-        os.mkdir(path)
-    except:
-        pass
-
-
 def remove_outliers(z_score, df, columns=None):
     columns = columns if columns else df.columns
     scores = np.abs(stats.zscore(df.loc[:, columns]))
     return df.loc[(scores < z_score).all(axis=1), :]
 
 
-# Need to include this in nhanes-dl
-def cache_nhanes(cache_path: str, get_nhanse: Callable[[], types.Codebook]) -> types.Codebook:
+# TODO: Move this to nhanes_dl
+def cache_nhanes(cache_path: str, get_nhanse: Callable[[], types.Codebook], updateCache: bool = False) -> types.Codebook:
     from os.path import exists
-    if exists(cache_path):
+    if exists(cache_path) and not updateCache:
         return types.Codebook(pd.read_csv(cache_path))
 
     else:

@@ -38,7 +38,6 @@ def createScalerConfigsIgnoreFeatures(scalers: List[Scaler], X: pd.DataFrame, fe
 
 
 def createScalerAllFeatures(scalers: List[Scaler], X: pd.DataFrame):
-    print(X.columns)
     return [addFeatures(emptyConfig(s), list(X.columns)) for s in scalers]
 
 
@@ -57,6 +56,7 @@ def withoutScaling(config: ScalerConfig, X: pd.DataFrame, features: List[str]):
 
 def runScaling(config: ScalerConfig, X: pd.DataFrame, Y: pd.Series) -> pd.DataFrame:
     # Run the scaler on the feature, making a new dataframe of scaled features
+    # NOTE: Make SURE not to modify original X or Y
     res = X.copy()
     if config.scaler is None:
         return res
@@ -84,7 +84,8 @@ GridSearchRun = Tuple[GridSearchConfig, FittedGridSearch]
 def runGridSearch(config: GridSearchConfig, target: str, X: pd.DataFrame, Y: pd.Series) -> FittedGridSearch:
     print(f"Run Grid Search -> {config}")
 
-    # Don't really care about scaling multiple times... for now
+    # NOTE: Scales multiple times
+    # Don't really care about performance impact
     scaled = runScaling(config.scalerConfig, X, Y)
 
     res = GridSearchCV(
@@ -130,7 +131,8 @@ def resultsScores(result: FittedGridSearch) -> List[str]:
 
 def resultToDataFrame(config: GridSearchConfig, res: FittedGridSearch) -> Results:
     best = res.best_index_
-    # Could add scoring method to df
+    # TODO add scoring method to res
+    # TODO add best params string to res
     names = resultsScores(res)
     runInfo = [getClassName(x)
                for x in [config.model(), config.scalerConfig.scaler, config.folding]]
@@ -146,27 +148,25 @@ def resultsToDataFrame(results: List[Tuple[GridSearchConfig, FittedGridSearch]])
 
 
 def plotResults3d(res: Results, score: str, savePath: str):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')
-    normEncoder = preprocessing.LabelEncoder()
-    modelEncoder = preprocessing.LabelEncoder()
-    res = Results(res.assign(scaler_enc=normEncoder.fit_transform(res.scaler),
-                             model_enc=modelEncoder.fit_transform(res.model)))
+    modelEncoder = preprocessing.LabelEncoder().fit(res.model)
+    scalerEncoder = preprocessing.LabelEncoder().fit(res.scaler)
 
-    # x = res.model_enc
-    # y = res.scaler_enc
-    # z = res[f"mean_test{score}"]
-    # ax.scatter(x, y, z, hue=res.folding)
+    for foldName, data in res.groupby("folding"):
+        x = modelEncoder.transform(data.model)
+        y = scalerEncoder.transform(data.scaler)
+        z = data[f"mean_test_{score}"]
+        ax.scatter(x, y, z, label=foldName)
 
-    for foldName, data in res.groupby(['folding']):
-        scores = data[f"mean_test_{score}"]
-        ax.scatter(data.model_enc, data.scaler_enc, scores, label=foldName)
-
-    plt.xticks(res.model_enc, modelEncoder.inverse_transform(res.model_enc))
-    plt.yticks(res.scaler_enc, normEncoder.inverse_transform(res.scaler_enc))
+    plt.xticks(modelEncoder.transform(res.model),
+               res.model, fontsize=6)
+    plt.yticks(scalerEncoder.transform(res.scaler),
+               res.scaler, fontsize=6)
     ax.set_xlabel("Models")
     ax.set_ylabel("Scaling")
     ax.set_zlabel(score)
+
     plt.legend(loc="best")
     plt.savefig(savePath)
     plt.close()
@@ -181,13 +181,12 @@ def getBestResult(results: List[GridSearchRun]) -> GridSearchRun:
 
 def printResult(result: GridSearchRun) -> None:
     conf, res = result
-    print(f"Config = {conf}")
-    print(f"Best Score: {res.best_score_} using {res.refit}")
     scores = resultsScores(res)
     scoreValues = [res.cv_results_[x][res.best_index_] for x in scores]
-    print(list(zip(scores, scoreValues)))
 
-    return
+    print(f"Config = {conf}")
+    print(f"Best Score: {res.best_score_} using {res.refit}")
+    print(list(zip(scores, scoreValues)))
 
 
 def printBestResult(results: List[GridSearchRun]):
@@ -196,8 +195,10 @@ def printBestResult(results: List[GridSearchRun]):
 
 
 def plotResultsGroupedByModel(res: Results, score: str, savePath: str):
-    # Not working all the way yet
-    grid = sns.FacetGrid(res, col="model", hue="scaler", col_wrap=3)
+    # NOTE: Bunches together folding method names
+    # Not a big deal for now
+    grid = sns.FacetGrid(res, col="model", hue="scaler",
+                         col_wrap=3, legend_out=True)
     grid.map(sns.scatterplot, "folding", f"mean_test_{score}")
     grid.add_legend()
     grid.savefig(f"{savePath}_{score}")

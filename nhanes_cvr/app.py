@@ -100,7 +100,7 @@ downloadConfig = {
     download.CodebookDownload(types.ContinuousNHANES.Third,
                               "L13_C", "L13AM_C", "L10AM_C", "CDQ_C", "DIQ_C",
                               "BPQ_C", "BMX_C", "DEMO_C", "BPX_C"),
-    # Everything past this point has the same feature (Mostly)
+    # Everything past this point has the same codebooks
     download.CodebookDownload(types.ContinuousNHANES.Fourth,
                               "TCHOL_D", "TRIGLY_D", "HDL_D", "GLU_D", "CDQ_D",
                               "DIQ_D", "BPQ_D", "BMX_D", "DEMO_D", "BPX_D"),
@@ -205,6 +205,30 @@ def runHandPickedFeatures():
 
 # --- CORRELATION TRAINING ---
 
+def runCorrelationFeatureSelectionDropNulls():
+    runName = "correlationNoNulls"
+    threshold = 0.1
+
+    # Should null be dropped before or after corrrelation?
+    filteredDataset = dataset.assign(
+        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)
+    cor = filteredDataset.corr()
+    cor_target = abs(cor["Y"])[:-1]  # Cut off Y correlation with -1
+    relevant_features = cor_target[cor_target > threshold]
+
+    relevant_features.to_csv(f"./results/{runName}_correlatedFeatures.csv")
+
+    X = filteredDataset.loc[:, relevant_features.index.values]
+    print(X.shape)
+    X = X.assign(Y=filteredDataset.Y).dropna(thresh=3, axis=0)
+    print(X.shape)
+    Y = X.Y
+    X = X.drop(columns=["Y"])
+    X = X.fillna(X.mean())
+
+    scalingConfigs = gs.createScalerAllFeatures(scalers, X)
+    runGridSearch(X, Y, scalingConfigs, runName)
+
 
 def runCorrelationFeatureSelection():
     runName = "correlation"
@@ -230,6 +254,10 @@ def runCorrelationFeatureSelection():
 
 # Abstract function to quickly run the gridSearchs using different X/Y/scalingConfigs
 def runGridSearch(X: pd.DataFrame, Y: pd.Series, scalingConfigs: List[gs.ScalerConfig], runName: str):
+    print(f"Starting {runName}")
+    print(f"X: {X.shape}")
+    print(f"Y: {Y.shape}")
+
     # Create Configs
     gridSearchConfigs = gs.createGridSearchConfigs(
         models, scalingConfigs, foldingStrategies, [scores])
