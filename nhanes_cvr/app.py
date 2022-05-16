@@ -4,9 +4,10 @@ import nhanes_cvr.combinefeatures as cf
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
 from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
-from nhanes_dl import download, types
+from nhanes_dl import download
 import nhanes_cvr.gridsearch as gs
 import nhanes_cvr.utils as utils
+import nhanes_dl.types as types
 
 
 # CONFIGURATION VARIABLES
@@ -15,7 +16,7 @@ scores = {"precision": make_scorer(precision_score, average="binary", zero_divis
           "f1": make_scorer(f1_score, average="binary", zero_division=0),
           "accuracy": make_scorer(accuracy_score)}
 targetScore = "precision"
-maxIter = 500
+maxIter = 200
 randomState = 42
 folds = 10
 foldRepeats = 10
@@ -25,8 +26,10 @@ foldingStrategies = [
                           random_state=randomState),
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=randomState),
-    BalancedKFold(n_splits=folds, shuffle=True, random_state=randomState),
-    # RepeatedBalancedKFold(n_splits=folds)
+    # BalancedKFold(n_splits=folds, shuffle=True, random_state=randomState),
+    # model_selection.RepeatedKFold(n_splits=10, n_repeats=10),
+    # model_selection.RepeatedStratifiedKFold(n_splits=10, n_repeats=10),
+    # RepeatedBalancedKFold(n_splits=10, n_repeats=10)
 ]
 
 
@@ -35,19 +38,27 @@ models = [
     (lambda: linear_model.LogisticRegression(random_state=randomState, max_iter=maxIter),
      [
         {
-            "C": [.5, 1],
-            "penalty": ["l2"],
-            "solver": ["newton-cg", "lbfgs", "liblinear", "sag", "saga"]
+            "C": [.2, .4, .6, .8, 1],
+            "penalty": ["l2", "none"],
+            "solver": ["newton-cg", "liblinear", "sag"],
+            "class_weight": [None, "balanced"]
         },
         {
-            "C": [.5, 1],
-            "penalty": ["l1"],
-            "solver": ["liblinear", "saga"]
+            "C": [.2, .4, .6, .8, 1],
+            "penalty": ["l1", "none"],
+            "solver": ["liblinear", "saga"],
+            "class_weight": [None, "balanced"]
+        },
+        {
+            "C": [.2, .4, .6, .8, 1],
+            "penalty": ["l2", "elasticnet", "l1", "none"],
+            "solver": ["saga"],
+            "class_weight": [None, "balanced"]
         }
     ]),
 
     (lambda: linear_model.SGDClassifier(shuffle=True, random_state=randomState),
-        {"loss": ["perceptron", "log", "perceptron"], "penalty":["l1", "l2"]}),
+        {"loss": ["perceptron", "log_loss", "perceptron"], "penalty":["l1", "l2"]}),
 
     (lambda: linear_model.RidgeClassifier(random_state=randomState), [
         {"solver": [
@@ -56,16 +67,18 @@ models = [
     ]),
 
     (lambda: ensemble.RandomForestClassifier(random_state=randomState), {
-     "class_weight": [None, "balanced", "balanced_subsample"]}
-     ),
+     "class_weight": [None, "balanced", "balanced_subsample"],
+     "max_features": ["sqrt", "log2"],  # May be best exploring this variable
+     "criterion": ["gini", "entropy", "log_loss"]
+     }),
 
     (lambda: neighbors.KNeighborsClassifier(),
      {"weights": ["uniform", "distance"]}),
 
     (lambda: neural_network.MLPClassifier(shuffle=True, max_iter=maxIter), {
      "activation": ["logistic", "tanh", "relu"],
-     "solver": ["lbfgs", "sgd", "adam"],
-     "learning_rate":["invscaling"]
+     "solver": ["sgd", "adam"],
+     "learning_rate":["invscaling", "adaptive"]
      }),
 
     (lambda: svm.LinearSVC(random_state=42), [
@@ -90,6 +103,8 @@ scalers = [
     preprocessing.RobustScaler()
 ]
 
+# NOTE: Most studies I've seen don't use the earlier years of nhanes
+# Probably cause it's harder to combine with them
 downloadConfig = {
     download.CodebookDownload(types.ContinuousNHANES.First,
                               "LAB13", "LAB13AM", "LAB10AM", "LAB18", "CDQ",
@@ -118,73 +133,197 @@ downloadConfig = {
                               "DIQ_H", "BPQ_H", "BMX_H", "DEMO_H", "BPX_H"),
 }
 
+# Only generates for years Forth-Eighth
+downloadConfig = utils.generateDownloadConfig(["TCHOL", "TRIGLY", "HDL",
+                                               "GLU", "CDQ", "DIQ",
+                                               "BPQ", "BMX", "DEMO",
+                                               "BPX", "SMQ", "DBQ",
+                                               "PAQ", "CBC", "GHB",
+                                               "BIOPRO", "UIO"])
+
+# NOTE: HYPOTHESIS - I think using MORE codebooks is actually worst for performance
+# I should try to use a few codebook as possible and rely on variables only within a couple.
+
 
 def standardYesNoProcessor(X):
+    # value of 1 is YES
+    # Set any other value to 0
     return X.apply(lambda x: 1 if x == 1 else 0)
 
 
-# # NOTE: NHANSE dataset early on had different variables names for some features
-# # CombineFeatures is used to combine these features into a single feature
+def highestValueNullReplacer(X):
+    m = X.max()
+    return X.fillna(m)
+
+# NOTE: NHANSE dataset early on had different variables names for some features
+# CombineFeatures is used to combine these features into a single feature
+
 
 # Should set up postProcess to drop rows if postProcess returns a smaller series
+# Might be able to change this to specify type feature should be
 combineConfigs = [
-    # --- Lab Work ---
+    cf.rename("RIDAGEYR", "AGE"),
+    cf.rename("RIAGENDR", "GENDER"),
+    cf.rename("RIDRETH1", "Race"),
     cf.rename("LBXTC", "Total_Chol", postProcess=cf.meanMissingReplacement),
     cf.rename("LBDLDL", "LDL", postProcess=cf.meanMissingReplacement),
-    cf.create(["LBDHDL", "LBXHDD", "LBDHDD"], "HDL",
-              postProcess=cf.meanMissingReplacement),
-    cf.create(["LBXSGL", "LB2GLU", "LBXGLU"], "FBG",
-              postProcess=cf.meanMissingReplacement),
+
+    cf.rename("LBDHDD", "HDL", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBXGLU", "FBG", postProcess=cf.meanMissingReplacement),
+    # cf.create(["LBDHDL", "LBXHDD", "LBDHDD"], "HDL",
+    #           postProcess=cf.meanMissingReplacement),
+    # cf.create(["LBXSGL", "LB2GLU", "LBXGLU"], "FBG",
+    #           postProcess=cf.meanMissingReplacement),
+
     # triglercyides
     cf.rename("LBXTR", "TG", postProcess=cf.meanMissingReplacement),
-    # --- Questionaire ---
-    cf.rename("DIQ010", "DIABETES", postProcess=standardYesNoProcessor),
-    cf.rename("DIQ170", "TOLD_AT_RISK_OF_DIABETES",
+    cf.rename("DIQ010", "DOCTOR_TOLD_HAVE_DIABETES",
               postProcess=standardYesNoProcessor),
-    cf.rename("DIQ200A", "CONTROLLING_WEIGHT",
+    # cf.rename("DIQ160", "TOLD_HAVE_PREDIABETES",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("DIQ170", "TOLD_AT_RISK_OF_DIABETES",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("DIQ200A", "CONTROLLING_WEIGHT",
+    #           postProcess=standardYesNoProcessor),
+
+    cf.rename("DIQ050", "NOW_TAKING_INSULIN",
               postProcess=standardYesNoProcessor),
     cf.rename(
         "BPQ020", "HIGH_BLOOD_PRESSURE", postProcess=standardYesNoProcessor),
-    cf.rename("BPQ030", "HIGH_BLOOD_PRESSURE_TWO_OR_MORE",
+    # cf.rename("BPQ030", "HIGH_BLOOD_PRESSURE_TWO_OR_MORE",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ052", "TOLD_HAVE_PREHYPERTENSION",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ057", "TOLD_BORDERLINE_HYPERTENSION",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ050A", "TAKEN_DRUGS_FOR_HYPERTEN",
+    #           postProcess=standardYesNoProcessor),
+    cf.rename("BPQ080", "TOLD_HAVE_HIGH_CHOL",
               postProcess=standardYesNoProcessor),
-    cf.rename("BPQ050A", "TAKEN_DRUGS_FOR_HYPERTEN",
-              postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ090A", "TOLD_EAT_LESS_FAT_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ090B", "TOLD_REDUCE_WEIGHT_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ090C", "TOLD_EXERCISE_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ090D", "TOLD_PRESCRIPTION_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ100A", "NOW_EATING_LESS_FAT_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ100B", "NOW_CONTROLLING_WEIGHT_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ100C", "NOW_INCREASING_EXERCISE_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
+    # cf.rename("BPQ100D", "NOW_TAKING_PRESCRIPTION_FOR_CHOL",
+    #           postProcess=standardYesNoProcessor),
     cf.rename(
         "CDQ001", "CHEST_PAIN", postProcess=standardYesNoProcessor),
-    # cf.rename("DBQ700", "HEALTHY_DIET") # Not in 1999
-    # --- Measurements ---
     cf.rename("BMXBMI", "BMI", postProcess=cf.meanMissingReplacement),
     cf.rename("BMXWAIST", "WC", postProcess=cf.meanMissingReplacement),
+    cf.rename("BMXHT", "HEIGHT", postProcess=cf.meanMissingReplacement),
+    cf.rename("BMXWT", "WEIGHT", postProcess=cf.meanMissingReplacement),
+    cf.rename("BMXARMC", "ARM_CIRCUMFERENCE",
+              postProcess=cf.meanMissingReplacement),
     cf.create(["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC",
               combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
     cf.create(["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC",
               combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
-    cf.rename("RIAGENDR", "GENDER"),
+    cf.rename("SMQ020", "SMOKED_AT_LEAST_100_IN_LIFE",
+              postProcess=standardYesNoProcessor),
+    # cf.rename("SMQ040", "CURRENTLY_SMOKES",
+    #                     postProcess=standardYesNoProcessor),
+    cf.rename("DBQ700", "HOW_HEALTHY_IS_DIET",
+              postProcess=highestValueNullReplacer),
+    # Seems that this isn't in every year
+    # cf.rename("PAQ560", "TIMES_PER_WEEK_EXERCISE_HARD",
+    #           postProcess=highestValueNullReplacer),
+    # cf.rename("PAD590", "HOURS_WATCHED_TV",
+    #           postProcess=highestValueNullReplacer),
+    # cf.rename("PAD600", "HOURS_COMPUTER_USE",
+    #           postProcess=highestValueNullReplacer),
+    # cf.rename("PAQ605", "DOES_WORK_INVOLVE_VIGOROUS_ACTIVITY",
+    #           postProcess=standardYesNoProcessor),
+    cf.rename("LBXHGB", "HEMOGOBLIN", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBXGH", "GLYCOHEMOGLOBIN",
+              postProcess=cf.meanMissingReplacement),
+    cf.rename("LBXSBU", "BLOOD_UREA_NITROGEN",
+              postProcess=cf.meanMissingReplacement),
+    cf.rename("LBXSCR", "CREATINE",
+              postProcess=cf.meanMissingReplacement),
+]
+
+# What codebooks this uses:
+# HDL, TRIGLY, TCHOL, GHB, CDQ, SMQ
+
+notNullCombineConfig = [
+    # Lab
     cf.rename("RIDAGEYR", "AGE"),
+    cf.rename("RIAGENDR", "GENDER"),
+    cf.rename("RIDRETH1", "Race"),
+    cf.rename("LBXTC", "Total_Chol", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBDLDL", "LDL", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBXTR", "TG", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBDHDD", "HDL", postProcess=cf.meanMissingReplacement),
+    cf.create(["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC",
+              combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
+    cf.create(["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC",
+              combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
+
+    cf.rename("LBXGLU", "FBG", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBXIN", "INSULIN", postProcess=cf.meanMissingReplacement),
+
+    cf.rename("LBXHGB", "HEMOGOBLIN", postProcess=cf.meanMissingReplacement),
+    cf.rename("LBXGH", "GLYCOHEMOGLOBIN",
+              postProcess=cf.meanMissingReplacement),
+
+    # Very few have this
+    # cf.rename("LBXAPB", "APOLIPOPROTEIN",
+    #           postProcess=cf.meanMissingReplacement),
+
+
+    # # Takes away like 700 samples
+    # cf.rename("URXUIO", "IODINE",
+    #           postProcess=cf.meanMissingReplacement),
+    # cf.rename("URXUCR", "CREATINE",
+    #           postProcess=cf.meanMissingReplacement),
+
+
+
+
+    # # Questionaire
+    cf.rename("CDQ001", "CHEST_PAIN", postProcess=standardYesNoProcessor),
+    cf.rename(
+        "CDQ010", "SHORTNESS_OF_BREATHS", postProcess=standardYesNoProcessor),
+    # # Could add more from CDQ
+    cf.rename(
+        "SMQ020", "SMOKED_AT_LEAST_100_IN_LIFE", postProcess=standardYesNoProcessor),
+
+    # # Might add Sleep, Weight History,
 ]
 
 # Download NHANES
+updateCache = utils.doesNHANESNeedRedownloaded(downloadConfig)
 NHANES_DATASET = utils.cache_nhanes("./data/nhanes.csv",
-                                    lambda: download.downloadCodebooksWithMortalityForYears(downloadConfig))
+                                    lambda: download.downloadCodebooksWithMortalityForYears(downloadConfig), updateCache=updateCache)
 
 # Process NHANES
 LINKED_DATASET = NHANES_DATASET.loc[NHANES_DATASET.ELIGSTAT == 1, :]
 DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
+ALIVE_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 0, :]
+
 
 print(f"Entire Dataset: {NHANES_DATASET.shape}")
 print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
 print(f"Dead Dataset: {DEAD_DATASET.shape}")
+print(f"Alive Dataset: {ALIVE_DATASET.shape}")
 DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
 
 dataset = DEAD_DATASET  # Quickly allows running on other datasets
 
-# Should expose API for this in nhanes-dl
+# TODO: Expose API for this in nhanes-dl
 mortalityCols = [x for x in download.mortality_colnames
                  if x not in download.drop_columns]
-# Hackish way to detect which features to not scale (YesNo Processor indicates categorical)
-withoutScalingFeatures = [
-    c.combinedName for c in combineConfigs if c.postProcess.__name__ == standardYesNoProcessor.__name__]
-print(f"Not Scaling: {withoutScalingFeatures}")
+featuresToScale = [cf.meanMissingReplacement.__name__]
 
 
 # --- HAND PICKED FEATURES TRAINING ---
@@ -198,6 +337,32 @@ def runHandPickedFeatures():
     X = cf.runCombines(combineConfigs, dataset)
     Y = utils.labelCauseOfDeathAsCVR(dataset)
 
+    withoutScalingFeatures = [
+        c.combinedName for c in combineConfigs if c.postProcess.__name__ not in featuresToScale]
+    print(f"Not Scaling: {withoutScalingFeatures}")
+
+    scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
+        scalers, X, withoutScalingFeatures)
+    runGridSearch(X, Y, scalingConfigs, runName)
+
+
+def runHandPickedNoNulls():
+    runName = "handPickedNoNulls"
+    keepNullConfig = cf.noPostProcessingForAll(notNullCombineConfig)
+    X = cf.runCombines(keepNullConfig, dataset)
+    Y = utils.labelCauseOfDeathAsCVR(dataset)
+    notNull = X.notnull().all(axis=1)
+    X = X.loc[notNull, :]
+    Y = Y.loc[notNull]
+    print(X.shape)
+    print(Y.shape)
+    print(f"True % = {Y[Y == 1].count() / (Y.shape[0])}")
+    # exit()
+
+    withoutScalingFeatures = [
+        c.combinedName for c in notNullCombineConfig if c.postProcess.__name__ not in featuresToScale]
+    print(f"Not Scaling: {withoutScalingFeatures}")
+
     scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
         scalers, X, withoutScalingFeatures)
     runGridSearch(X, Y, scalingConfigs, runName)
@@ -209,9 +374,9 @@ def runCorrelationFeatureSelectionDropNulls():
     runName = "correlationNoNulls"
     threshold = 0.1
 
-    # Should null be dropped before or after corrrelation?
+    # NOTE: Should null be dropped before or after corrrelation?
     filteredDataset = dataset.assign(
-        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)
+        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)  # type: ignore
     cor = filteredDataset.corr()
     cor_target = abs(cor["Y"])[:-1]  # Cut off Y correlation with -1
     relevant_features = cor_target[cor_target > threshold]
@@ -219,9 +384,8 @@ def runCorrelationFeatureSelectionDropNulls():
     relevant_features.to_csv(f"./results/{runName}_correlatedFeatures.csv")
 
     X = filteredDataset.loc[:, relevant_features.index.values]
-    print(X.shape)
     X = X.assign(Y=filteredDataset.Y).dropna(thresh=3, axis=0)
-    print(X.shape)
+
     Y = X.Y
     X = X.drop(columns=["Y"])
     X = X.fillna(X.mean())
@@ -237,7 +401,7 @@ def runCorrelationFeatureSelection():
     # Correlation Selection
     # Followed article: https://towardsdatascience.com/feature-selection-with-pandas-e3690ad8504b
     filteredDataset = dataset.assign(
-        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)
+        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)  # type: ignore
     cor = filteredDataset.corr()
     cor_target = abs(cor["Y"])[:-1]  # Cut off Y correlation with -1
     relevant_features = cor_target[cor_target > threshold]
@@ -253,6 +417,8 @@ def runCorrelationFeatureSelection():
 
 
 # Abstract function to quickly run the gridSearchs using different X/Y/scalingConfigs
+
+
 def runGridSearch(X: pd.DataFrame, Y: pd.Series, scalingConfigs: List[gs.ScalerConfig], runName: str):
     print(f"Starting {runName}")
     print(f"X: {X.shape}")

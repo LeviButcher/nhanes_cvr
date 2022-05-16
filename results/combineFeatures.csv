@@ -1,19 +1,27 @@
 ,inFeatures,outFeature,combinationStrategy,postProcessing
-0,['LBXTC'],Total_Chol,firstNonNullCombine,meanMissingReplacement
-1,['LBDLDL'],LDL,firstNonNullCombine,meanMissingReplacement
-2,"['LBDHDL', 'LBXHDD', 'LBDHDD']",HDL,firstNonNullCombine,meanMissingReplacement
-3,"['LBXSGL', 'LB2GLU', 'LBXGLU']",FBG,firstNonNullCombine,meanMissingReplacement
-4,['LBXTR'],TG,firstNonNullCombine,meanMissingReplacement
-5,['DIQ010'],DIABETES,firstNonNullCombine,standardYesNoProcessor
-6,['DIQ170'],TOLD_AT_RISK_OF_DIABETES,firstNonNullCombine,standardYesNoProcessor
-7,['DIQ200A'],CONTROLLING_WEIGHT,firstNonNullCombine,standardYesNoProcessor
-8,['BPQ020'],HIGH_BLOOD_PRESSURE,firstNonNullCombine,standardYesNoProcessor
-9,['BPQ030'],HIGH_BLOOD_PRESSURE_TWO_OR_MORE,firstNonNullCombine,standardYesNoProcessor
-10,['BPQ050A'],TAKEN_DRUGS_FOR_HYPERTEN,firstNonNullCombine,standardYesNoProcessor
-11,['CDQ001'],CHEST_PAIN,firstNonNullCombine,standardYesNoProcessor
-12,['BMXBMI'],BMI,firstNonNullCombine,meanMissingReplacement
-13,['BMXWAIST'],WC,firstNonNullCombine,meanMissingReplacement
-14,"['BPXSY1', 'BPXSY2', 'BPXSY3', 'BPXSY4']",SYSTOLIC,meanCombine,meanMissingReplacement
-15,"['BPXDI1', 'BPXDI2', 'BPXDI3', 'BPXDI4']",DIASTOLIC,meanCombine,meanMissingReplacement
-16,['RIAGENDR'],GENDER,firstNonNullCombine,noProcessing
-17,['RIDAGEYR'],AGE,firstNonNullCombine,noProcessing
+0,['RIDAGEYR'],AGE,firstNonNullCombine,const
+1,['RIAGENDR'],GENDER,firstNonNullCombine,const
+2,['RIDRETH1'],Race,firstNonNullCombine,const
+3,['LBXTC'],Total_Chol,firstNonNullCombine,meanMissingReplacement
+4,['LBDLDL'],LDL,firstNonNullCombine,meanMissingReplacement
+5,['LBDHDD'],HDL,firstNonNullCombine,meanMissingReplacement
+6,['LBXGLU'],FBG,firstNonNullCombine,meanMissingReplacement
+7,['LBXTR'],TG,firstNonNullCombine,meanMissingReplacement
+8,['DIQ010'],DOCTOR_TOLD_HAVE_DIABETES,firstNonNullCombine,standardYesNoProcessor
+9,['DIQ050'],NOW_TAKING_INSULIN,firstNonNullCombine,standardYesNoProcessor
+10,['BPQ020'],HIGH_BLOOD_PRESSURE,firstNonNullCombine,standardYesNoProcessor
+11,['BPQ080'],TOLD_HAVE_HIGH_CHOL,firstNonNullCombine,standardYesNoProcessor
+12,['CDQ001'],CHEST_PAIN,firstNonNullCombine,standardYesNoProcessor
+13,['BMXBMI'],BMI,firstNonNullCombine,meanMissingReplacement
+14,['BMXWAIST'],WC,firstNonNullCombine,meanMissingReplacement
+15,['BMXHT'],HEIGHT,firstNonNullCombine,meanMissingReplacement
+16,['BMXWT'],WEIGHT,firstNonNullCombine,meanMissingReplacement
+17,['BMXARMC'],ARM_CIRCUMFERENCE,firstNonNullCombine,meanMissingReplacement
+18,"['BPXSY1', 'BPXSY2', 'BPXSY3', 'BPXSY4']",SYSTOLIC,meanCombine,meanMissingReplacement
+19,"['BPXDI1', 'BPXDI2', 'BPXDI3', 'BPXDI4']",DIASTOLIC,meanCombine,meanMissingReplacement
+20,['SMQ020'],SMOKED_AT_LEAST_100_IN_LIFE,firstNonNullCombine,standardYesNoProcessor
+21,['DBQ700'],HOW_HEALTHY_IS_DIET,firstNonNullCombine,highestValueNullReplacer
+22,['LBXHGB'],HEMOGOBLIN,firstNonNullCombine,meanMissingReplacement
+23,['LBXGH'],GLYCOHEMOGLOBIN,firstNonNullCombine,meanMissingReplacement
+24,['LBXSBU'],BLOOD_UREA_NITROGEN,firstNonNullCombine,meanMissingReplacement
+25,['LBXSCR'],CREATINE,firstNonNullCombine,meanMissingReplacement

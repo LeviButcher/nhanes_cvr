@@ -7,7 +7,7 @@ PostProcess = Callable[[pd.Series], pd.Series]
 CombineStrategy = Callable[[pd.DataFrame], pd.Series]
 
 
-def noProcessing(X: pd.Series) -> pd.Series:
+def const(X):
     return X
 
 
@@ -23,14 +23,14 @@ class CombineFeatures(NamedTuple):
     features: List[str]
     combinedName: str
     combineStrategy: CombineStrategy
-    postProcess: PostProcess = noProcessing
+    postProcess: PostProcess = const
 
 
-def rename(inFeature: str, outName: str, postProcess: PostProcess = noProcessing):
+def rename(inFeature: str, outName: str, postProcess: PostProcess = const):
     return CombineFeatures([inFeature], outName, firstNonNullCombine, postProcess)
 
 
-def create(inFeature: List[str], outName: str, combineStrategy=firstNonNullCombine, postProcess=noProcessing):
+def create(inFeature: List[str], outName: str, combineStrategy=firstNonNullCombine, postProcess=const):
 
     return CombineFeatures(inFeature, outName, combineStrategy, postProcess)
 
@@ -64,3 +64,12 @@ def runCombines(combines: List[CombineFeatures], X: pd.DataFrame) -> pd.DataFram
 
 def combineFeaturesToDataFrame(combines: List[CombineFeatures]) -> pd.DataFrame:
     return pd.DataFrame([[f, n, cs.__name__, pp.__name__] for f, n, cs, pp in combines], columns=["inFeatures", "outFeature", "combinationStrategy", "postProcessing"])
+
+
+def noPostProcessing(combine: CombineFeatures) -> CombineFeatures:
+    (features, combinedName, strat, _) = combine
+    return CombineFeatures(features, combinedName, strat, const)
+
+
+def noPostProcessingForAll(combines: List[CombineFeatures]) -> List[CombineFeatures]:
+    return [noPostProcessing(x) for x in combines]
