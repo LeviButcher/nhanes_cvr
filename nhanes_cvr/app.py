@@ -26,7 +26,7 @@ foldingStrategies = [
                           random_state=randomState),
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=randomState),
-    # BalancedKFold(n_splits=folds, shuffle=True, random_state=randomState),
+    BalancedKFold(n_splits=folds, shuffle=True, random_state=randomState),
     # model_selection.RepeatedKFold(n_splits=10, n_repeats=10),
     # model_selection.RepeatedStratifiedKFold(n_splits=10, n_repeats=10),
     # RepeatedBalancedKFold(n_splits=10, n_repeats=10)
@@ -51,9 +51,17 @@ models = [
         },
         {
             "C": [.2, .4, .6, .8, 1],
-            "penalty": ["l2", "elasticnet", "l1", "none"],
+            "penalty": ["l2", "l1", "none"],
             "solver": ["saga"],
-            "class_weight": [None, "balanced"]
+            "class_weight": [None, "balanced"],
+            "l1_ratio": [.5]
+        },
+        {
+            "C": [.2, .4, .6, .8, 1],
+            "penalty": ["elasticnet"],
+            "solver": ["saga"],
+            "class_weight": [None, "balanced"],
+            "l1_ratio": [.3, .5, .8]
         }
     ]),
 
@@ -73,7 +81,10 @@ models = [
      }),
 
     (lambda: neighbors.KNeighborsClassifier(),
-     {"weights": ["uniform", "distance"]}),
+     {"weights": ["uniform", "distance"],
+      "n_neighbors": [5, 10],
+      "leaf_size": [30, 50]
+      }),
 
     (lambda: neural_network.MLPClassifier(shuffle=True, max_iter=maxIter), {
      "activation": ["logistic", "tanh", "relu"],
@@ -141,9 +152,6 @@ downloadConfig = utils.generateDownloadConfig(["TCHOL", "TRIGLY", "HDL",
                                                "PAQ", "CBC", "GHB",
                                                "BIOPRO", "UIO"])
 
-# NOTE: HYPOTHESIS - I think using MORE codebooks is actually worst for performance
-# I should try to use a few codebook as possible and rely on variables only within a couple.
-
 
 def standardYesNoProcessor(X):
     # value of 1 is YES
@@ -179,43 +187,43 @@ combineConfigs = [
     cf.rename("LBXTR", "TG", postProcess=cf.meanMissingReplacement),
     cf.rename("DIQ010", "DOCTOR_TOLD_HAVE_DIABETES",
               postProcess=standardYesNoProcessor),
-    # cf.rename("DIQ160", "TOLD_HAVE_PREDIABETES",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("DIQ170", "TOLD_AT_RISK_OF_DIABETES",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("DIQ200A", "CONTROLLING_WEIGHT",
-    #           postProcess=standardYesNoProcessor),
+    cf.rename("DIQ160", "TOLD_HAVE_PREDIABETES",
+              postProcess=standardYesNoProcessor),
+    cf.rename("DIQ170", "TOLD_AT_RISK_OF_DIABETES",
+              postProcess=standardYesNoProcessor),
+    cf.rename("DIQ200A", "CONTROLLING_WEIGHT",
+              postProcess=standardYesNoProcessor),
 
     cf.rename("DIQ050", "NOW_TAKING_INSULIN",
               postProcess=standardYesNoProcessor),
-    cf.rename(
-        "BPQ020", "HIGH_BLOOD_PRESSURE", postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ030", "HIGH_BLOOD_PRESSURE_TWO_OR_MORE",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ052", "TOLD_HAVE_PREHYPERTENSION",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ057", "TOLD_BORDERLINE_HYPERTENSION",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ050A", "TAKEN_DRUGS_FOR_HYPERTEN",
-    #           postProcess=standardYesNoProcessor),
+    cf.rename("BPQ020", "HIGH_BLOOD_PRESSURE",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ030", "HIGH_BLOOD_PRESSURE_TWO_OR_MORE",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ052", "TOLD_HAVE_PREHYPERTENSION",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ057", "TOLD_BORDERLINE_HYPERTENSION",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ050A", "TAKEN_DRUGS_FOR_HYPERTEN",
+              postProcess=standardYesNoProcessor),
     cf.rename("BPQ080", "TOLD_HAVE_HIGH_CHOL",
               postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ090A", "TOLD_EAT_LESS_FAT_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ090B", "TOLD_REDUCE_WEIGHT_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ090C", "TOLD_EXERCISE_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ090D", "TOLD_PRESCRIPTION_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ100A", "NOW_EATING_LESS_FAT_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ100B", "NOW_CONTROLLING_WEIGHT_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ100C", "NOW_INCREASING_EXERCISE_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
-    # cf.rename("BPQ100D", "NOW_TAKING_PRESCRIPTION_FOR_CHOL",
-    #           postProcess=standardYesNoProcessor),
+    cf.rename("BPQ090A", "TOLD_EAT_LESS_FAT_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ090B", "TOLD_REDUCE_WEIGHT_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ090C", "TOLD_EXERCISE_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ090D", "TOLD_PRESCRIPTION_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ100A", "NOW_EATING_LESS_FAT_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ100B", "NOW_CONTROLLING_WEIGHT_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ100C", "NOW_INCREASING_EXERCISE_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
+    cf.rename("BPQ100D", "NOW_TAKING_PRESCRIPTION_FOR_CHOL",
+              postProcess=standardYesNoProcessor),
     cf.rename(
         "CDQ001", "CHEST_PAIN", postProcess=standardYesNoProcessor),
     cf.rename("BMXBMI", "BMI", postProcess=cf.meanMissingReplacement),
@@ -230,8 +238,8 @@ combineConfigs = [
               combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
     cf.rename("SMQ020", "SMOKED_AT_LEAST_100_IN_LIFE",
               postProcess=standardYesNoProcessor),
-    # cf.rename("SMQ040", "CURRENTLY_SMOKES",
-    #                     postProcess=standardYesNoProcessor),
+    cf.rename("SMQ040", "CURRENTLY_SMOKES",
+                        postProcess=standardYesNoProcessor),
     cf.rename("DBQ700", "HOW_HEALTHY_IS_DIET",
               postProcess=highestValueNullReplacer),
     # Seems that this isn't in every year
@@ -252,18 +260,18 @@ combineConfigs = [
               postProcess=cf.meanMissingReplacement),
 ]
 
-# What codebooks this uses:
-# HDL, TRIGLY, TCHOL, GHB, CDQ, SMQ
-
 notNullCombineConfig = [
-    # Lab
+    # Demographics
     cf.rename("RIDAGEYR", "AGE"),
     cf.rename("RIAGENDR", "GENDER"),
     cf.rename("RIDRETH1", "Race"),
+
+    # Lab
     cf.rename("LBXTC", "Total_Chol", postProcess=cf.meanMissingReplacement),
     cf.rename("LBDLDL", "LDL", postProcess=cf.meanMissingReplacement),
     cf.rename("LBXTR", "TG", postProcess=cf.meanMissingReplacement),
     cf.rename("LBDHDD", "HDL", postProcess=cf.meanMissingReplacement),
+
     cf.create(["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC",
               combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
     cf.create(["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC",
@@ -292,11 +300,11 @@ notNullCombineConfig = [
 
     # # Questionaire
     cf.rename("CDQ001", "CHEST_PAIN", postProcess=standardYesNoProcessor),
-    cf.rename(
-        "CDQ010", "SHORTNESS_OF_BREATHS", postProcess=standardYesNoProcessor),
-    # # Could add more from CDQ
-    cf.rename(
-        "SMQ020", "SMOKED_AT_LEAST_100_IN_LIFE", postProcess=standardYesNoProcessor),
+    cf.rename("CDQ010", "SHORTNESS_OF_BREATHS",
+              postProcess=standardYesNoProcessor),
+    # # # Could add more from CDQ
+    cf.rename("SMQ020", "SMOKED_AT_LEAST_100_IN_LIFE",
+              postProcess=standardYesNoProcessor),
 
     # # Might add Sleep, Weight History,
 ]
@@ -310,7 +318,6 @@ NHANES_DATASET = utils.cache_nhanes("./data/nhanes.csv",
 LINKED_DATASET = NHANES_DATASET.loc[NHANES_DATASET.ELIGSTAT == 1, :]
 DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
 ALIVE_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 0, :]
-
 
 print(f"Entire Dataset: {NHANES_DATASET.shape}")
 print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
@@ -332,7 +339,7 @@ featuresToScale = [cf.meanMissingReplacement.__name__]
 def runHandPickedFeatures():
     runName = "handpicked"
     ccDF = cf.combineFeaturesToDataFrame(combineConfigs)
-    ccDF.to_csv("./results/combineFeatures.csv")
+    ccDF.to_csv("./results/handpicked_features.csv")
 
     X = cf.runCombines(combineConfigs, dataset)
     Y = utils.labelCauseOfDeathAsCVR(dataset)
@@ -348,6 +355,8 @@ def runHandPickedFeatures():
 
 def runHandPickedNoNulls():
     runName = "handPickedNoNulls"
+    ccDF = cf.combineFeaturesToDataFrame(notNullCombineConfig)
+    ccDF.to_csv("./results/handpickedNoNull_features.csv")
     keepNullConfig = cf.noPostProcessingForAll(notNullCombineConfig)
     X = cf.runCombines(keepNullConfig, dataset)
     Y = utils.labelCauseOfDeathAsCVR(dataset)

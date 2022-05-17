@@ -3,6 +3,7 @@ if __name__ == '__main__':
     import nhanes_cvr.app as app
 
     start = datetime.now()
+    # Takes an hour to run all of them with 3 different folding
 
     app.runHandPickedFeatures()
     print(f"runHandPicked - {datetime.now() - start}")

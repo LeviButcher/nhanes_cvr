@@ -1,0 +1,17 @@
+,inFeatures,outFeature,combinationStrategy,postProcessing
+0,['RIDAGEYR'],AGE,firstNonNullCombine,const
+1,['RIAGENDR'],GENDER,firstNonNullCombine,const
+2,['RIDRETH1'],Race,firstNonNullCombine,const
+3,['LBXTC'],Total_Chol,firstNonNullCombine,meanMissingReplacement
+4,['LBDLDL'],LDL,firstNonNullCombine,meanMissingReplacement
+5,['LBXTR'],TG,firstNonNullCombine,meanMissingReplacement
+6,['LBDHDD'],HDL,firstNonNullCombine,meanMissingReplacement
+7,"['BPXSY1', 'BPXSY2', 'BPXSY3', 'BPXSY4']",SYSTOLIC,meanCombine,meanMissingReplacement
+8,"['BPXDI1', 'BPXDI2', 'BPXDI3', 'BPXDI4']",DIASTOLIC,meanCombine,meanMissingReplacement
+9,['LBXGLU'],FBG,firstNonNullCombine,meanMissingReplacement
+10,['LBXIN'],INSULIN,firstNonNullCombine,meanMissingReplacement
+11,['LBXHGB'],HEMOGOBLIN,firstNonNullCombine,meanMissingReplacement
+12,['LBXGH'],GLYCOHEMOGLOBIN,firstNonNullCombine,meanMissingReplacement
+13,['CDQ001'],CHEST_PAIN,firstNonNullCombine,standardYesNoProcessor
+14,['CDQ010'],SHORTNESS_OF_BREATHS,firstNonNullCombine,standardYesNoProcessor
+15,['SMQ020'],SMOKED_AT_LEAST_100_IN_LIFE,firstNonNullCombine,standardYesNoProcessor
