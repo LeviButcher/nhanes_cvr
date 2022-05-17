@@ -26,8 +26,10 @@ def labelCauseOfDeathAsCVR(nhanse_dataset: pd.DataFrame) -> pd.Series:
     # 1 is Diesease of heart
     # 5 is Cerebrovascular Diseases
 
+    # TODO: Encode UCOD_LEADING as a enum
     def isCVR(
-        X): return X.UCOD_LEADING == 1 or X.UCOD_LEADING == 5 or X.UCOD_LEADING == 7
+        X): return X.UCOD_LEADING == 1 or X.UCOD_LEADING == 5
+    # or X.UCOD_LEADING == 7
 
     # monthsSinceFollowUp = 326 * .5
     # return nhanse_dataset.agg(lambda x: 1 if x.PERMTH_EXM <= monthsSinceFollowUp
@@ -37,9 +39,9 @@ def labelCauseOfDeathAsCVR(nhanse_dataset: pd.DataFrame) -> pd.Series:
 
 
 def remove_outliers(z_score, df, columns=None):
-    columns = columns if columns else df.columns
+    columns = columns if columns is not None else df.columns
     scores = np.abs(stats.zscore(df.loc[:, columns]))
-    return df.loc[(scores < z_score).all(axis=1), :]
+    return (scores < z_score).all(axis=1)
 
 
 # TODO: Move this to nhanes_dl

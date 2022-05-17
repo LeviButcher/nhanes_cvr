@@ -11,6 +11,9 @@ if __name__ == '__main__':
     app.runHandPickedNoNulls()
     print(f"runHandPickedNoNulls - {datetime.now() - start}")
 
+    app.runHandPickedNoNullsAndOutliers()
+    print(f"runHandPickedNoNullsAndOutliers - {datetime.now() - start}")
+
     app.runCorrelationFeatureSelection()
     print(f"runCorrelationFeatureSelection - {datetime.now() - start}")
 

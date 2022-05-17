@@ -6,6 +6,7 @@ from functools import reduce
 from nhanes_cvr.utils import getClassName
 import seaborn as sns
 import matplotlib.pyplot as plt
+import sklearn.metrics as metrics
 
 sns.set(style="darkgrid")
 
@@ -156,7 +157,7 @@ def plotResults3d(res: Results, score: str, savePath: str):
     for foldName, data in res.groupby("folding"):
         x = modelEncoder.transform(data.model)
         y = scalerEncoder.transform(data.scaler)
-        z = data[f"mean_test_{score}"]
+        z = data[score]
         ax.scatter(x, y, z, label=foldName)
 
     plt.xticks(modelEncoder.transform(res.model),
@@ -199,6 +200,22 @@ def plotResultsGroupedByModel(res: Results, score: str, savePath: str):
     # Not a big deal for now
     grid = sns.FacetGrid(res, col="model", hue="scaler",
                          col_wrap=3, legend_out=True)
-    grid.map(sns.scatterplot, "folding", f"mean_test_{score}")
+    grid.map(sns.scatterplot, "folding", score)
     grid.add_legend()
     grid.savefig(f"{savePath}_{score}")
+
+
+def evaluateModel(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring,  gs: GridSearchRun) -> Results:
+    config, model = gs
+    scoreValues = [f(model, testX, testY) for (_, f) in scoringConfig.items()]
+    scoreNames = [n for n in scoringConfig.keys()]
+    runInfo = [getClassName(x)
+               for x in [config.model(), config.scalerConfig.scaler, config.folding]]
+    row = runInfo + scoreValues
+    columns = ["model", "scaler", "folding"] + scoreNames
+
+    return Results(pd.DataFrame([row], columns=columns))
+
+
+def evaluateModels(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring, gridSearches: List[GridSearchRun]) -> Results:
+    return Results(pd.concat([evaluateModel(testX, testY, scoringConfig, gs) for gs in gridSearches]))

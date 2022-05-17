@@ -11,15 +11,16 @@ import nhanes_dl.types as types
 
 
 # CONFIGURATION VARIABLES
-scores = {"precision": make_scorer(precision_score, average="binary", zero_division=0),
-          "recall": make_scorer(recall_score, average="binary", zero_division=0),
-          "f1": make_scorer(f1_score, average="binary", zero_division=0),
-          "accuracy": make_scorer(accuracy_score)}
+scoringConfig = {"precision": make_scorer(precision_score, average="binary", zero_division=0),
+                 "recall": make_scorer(recall_score, average="binary", zero_division=0),
+                 "f1": make_scorer(f1_score, average="binary", zero_division=0),
+                 "accuracy": make_scorer(accuracy_score)}
 targetScore = "precision"
 maxIter = 200
 randomState = 42
 folds = 10
 foldRepeats = 10
+testSize = .20
 
 foldingStrategies = [
     model_selection.KFold(n_splits=folds, shuffle=True,
@@ -366,11 +367,41 @@ def runHandPickedNoNulls():
     print(X.shape)
     print(Y.shape)
     print(f"True % = {Y[Y == 1].count() / (Y.shape[0])}")
+
     # exit()
 
     withoutScalingFeatures = [
         c.combinedName for c in notNullCombineConfig if c.postProcess.__name__ not in featuresToScale]
     print(f"Not Scaling: {withoutScalingFeatures}")
+
+    scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
+        scalers, X, withoutScalingFeatures)
+    runGridSearch(X, Y, scalingConfigs, runName)
+
+
+def runHandPickedNoNullsAndOutliers():
+    runName = "handPickedNoNullsAndOutliers"
+    ccDF = cf.combineFeaturesToDataFrame(notNullCombineConfig)
+    ccDF.to_csv("./results/handpickedNoNull_features.csv")
+    keepNullConfig = cf.noPostProcessingForAll(notNullCombineConfig)
+    X = cf.runCombines(keepNullConfig, dataset)
+    Y = utils.labelCauseOfDeathAsCVR(dataset)
+    notNull = X.notnull().all(axis=1)
+    X = X.loc[notNull, :]
+    Y = Y.loc[notNull]
+
+    noOutliers = utils.remove_outliers(2.9, X)
+    X = X.loc[noOutliers, :]
+    Y = Y.loc[noOutliers]
+
+    print(X.shape)
+    print(Y.shape)
+    print(f"True % = {Y[Y == 1].count() / (Y.shape[0])}")
+
+    withoutScalingFeatures = [
+        c.combinedName for c in notNullCombineConfig if c.postProcess.__name__ not in featuresToScale]
+    print(f"Not Scaling: {withoutScalingFeatures}")
+    # exit()
 
     scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
         scalers, X, withoutScalingFeatures)
@@ -433,22 +464,34 @@ def runGridSearch(X: pd.DataFrame, Y: pd.Series, scalingConfigs: List[gs.ScalerC
     print(f"X: {X.shape}")
     print(f"Y: {Y.shape}")
 
+    trainX, testX, trainY, testY = model_selection.train_test_split(
+        X, Y, test_size=testSize, random_state=randomState, stratify=Y)
+
     # Create Configs
     gridSearchConfigs = gs.createGridSearchConfigs(
-        models, scalingConfigs, foldingStrategies, [scores])
+        models, scalingConfigs, foldingStrategies, [scoringConfig])
 
     # Run Training
-    res = gs.runMultipleGridSearchs(gridSearchConfigs, targetScore, X, Y)
+    res = gs.runMultipleGridSearchs(
+        gridSearchConfigs, targetScore, trainX, trainY)
     resultsDF = gs.resultsToDataFrame(res)
 
     # Save Plots
     [gs.plotResultsGroupedByModel(
-        resultsDF, s, f"./results/{runName}_groupedModelPlots") for s in scores.keys()]
-    gs.plotResults3d(resultsDF, targetScore,
-                     f"./results/{runName}_plotResults3d")
-    resultsDF.to_csv(f"./results/{runName}_results.csv")
+        resultsDF, s, f"./results/{runName}_train_groupedModelPlots") for s in gs.resultsScores(res[0][1])]
+
+    gs.plotResults3d(resultsDF, f"mean_test_{targetScore}",
+                     f"./results/{runName}_train_plotResults3d")
+    resultsDF.to_csv(f"./results/{runName}_train_results.csv")
 
     # Output Best Info
     print("\n--- FINISHED ---\n")
     print(f"Ran {len(res)} Configs")
     gs.printBestResult(res)
+
+    testResultsDF = gs.evaluateModels(testX, testY, scoringConfig, res)
+    [gs.plotResultsGroupedByModel(
+        testResultsDF, s, f"./results/{runName}_test_groupedModelPlots") for s in scoringConfig.keys()]
+    gs.plotResults3d(testResultsDF, targetScore,
+                     f"./results/{runName}_test_plotResults3d")
+    testResultsDF.to_csv(f"./results/{runName}_test_results.csv")
