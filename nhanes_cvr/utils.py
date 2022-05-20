@@ -38,7 +38,7 @@ def labelCauseOfDeathAsCVR(nhanse_dataset: pd.DataFrame) -> pd.Series:
     return nhanse_dataset.agg(isCVR, axis=1)
 
 
-def remove_outliers(z_score, df, columns=None):
+def removeOutliers(z_score, df, columns=None):
     columns = columns if columns is not None else df.columns
     scores = np.abs(stats.zscore(df.loc[:, columns]))
     return (scores < z_score).all(axis=1)
@@ -88,3 +88,14 @@ def doesNHANESNeedRedownloaded(config: Set[download.CodebookDownload]) -> bool:
         f.close()
         return True
     return False
+
+
+def makeDirectoryIfNotExists(directory: str) -> bool:
+    import os
+
+    try:
+        os.mkdir(directory)
+        return True
+
+    except:
+        return False

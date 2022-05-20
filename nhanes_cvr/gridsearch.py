@@ -6,7 +6,8 @@ from functools import reduce
 from nhanes_cvr.utils import getClassName
 import seaborn as sns
 import matplotlib.pyplot as plt
-import sklearn.metrics as metrics
+import nhanes_cvr.utils as utils
+from toolz import curry
 
 sns.set(style="darkgrid")
 
@@ -19,6 +20,7 @@ Scoring = Dict[str, Any]
 Target = str
 FittedGridSearch = NewType('FittedGridSearch', GridSearchCV)
 Results = NewType('Results', pd.DataFrame)
+ModelWithParams = Tuple[Model, ModelParams]
 
 
 class ScalerConfig(NamedTuple):
@@ -34,10 +36,12 @@ def createScalerConfigs(scalers: List[Scaler], features: List[str]) -> List[Scal
     return [ScalerConfig(s, features) for s in scalers]
 
 
-def createScalerConfigsIgnoreFeatures(scalers: List[Scaler], X: pd.DataFrame, features: List[str]) -> List[ScalerConfig]:
+@curry
+def createScalerConfigsIgnoreFeatures(scalers: List[Scaler], features: List[str],  X: pd.DataFrame) -> List[ScalerConfig]:
     return [withoutScaling(emptyConfig(s), X, features) for s in scalers]
 
 
+@curry
 def createScalerAllFeatures(scalers: List[Scaler], X: pd.DataFrame):
     return [addFeatures(emptyConfig(s), list(X.columns)) for s in scalers]
 
@@ -97,11 +101,11 @@ def runGridSearch(config: GridSearchConfig, target: str, X: pd.DataFrame, Y: pd.
     return res.fit(scaled, Y)
 
 
-def runMultipleGridSearchs(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series) -> List[GridSearchRun]:
+def runMultipleGridSearches(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series) -> List[GridSearchRun]:
     return [(c, runGridSearch(c, target, X, Y)) for c in configs]
 
 
-def runMultipleGridSearchsAsync(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series, ) -> List[GridSearchRun]:
+def runMultipleGridSearchesAsync(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series, ) -> List[GridSearchRun]:
     import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -109,7 +113,7 @@ def runMultipleGridSearchsAsync(configs: List[GridSearchConfig], target: str, X:
             lambda c: runGridSearch(c, target, X, Y), configs)))
 
 
-def createGridSearchConfigs(modelConfigs: List[Tuple[Model, ModelParams]],
+def createGridSearchConfigs(modelConfigs: List[ModelWithParams],
                             scalers: List[ScalerConfig], foldings: List[Folding],
                             scoringList: List[Scoring]) -> List[GridSearchConfig]:
 
@@ -128,6 +132,11 @@ def resultsScores(result: FittedGridSearch) -> List[str]:
     types = ["test", "train"]
 
     return [f"mean_{t}_{score}" for t in types for score in list(result.scorer_)]
+
+
+def getTestScoreNames(scoringConfig) -> List[str]:
+    types = ["train", "test"]
+    return [f"mean_{t}_{s}" for s in scoringConfig.keys() for t in types]
 
 
 def resultToDataFrame(config: GridSearchConfig, res: FittedGridSearch) -> Results:
@@ -195,14 +204,19 @@ def printBestResult(results: List[GridSearchRun]):
     printResult(best)
 
 
-def plotResultsGroupedByModel(res: Results, score: str, savePath: str):
+def plotResultsGroupedByModel(res: Results, score: str, savePath: str, title=""):
     # NOTE: Bunches together folding method names
     # Not a big deal for now
+    completePath = f"{savePath}_{score}"
     grid = sns.FacetGrid(res, col="model", hue="scaler",
                          col_wrap=3, legend_out=True)
     grid.map(sns.scatterplot, "folding", score)
     grid.add_legend()
-    grid.savefig(f"{savePath}_{score}")
+    grid.fig.subplots_adjust(top=0.8)
+    grid.fig.suptitle(title, fontsize=16)
+
+    grid.savefig(completePath)
+    plt.close()
 
 
 def evaluateModel(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring,  gs: GridSearchRun) -> Results:
@@ -219,3 +233,53 @@ def evaluateModel(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring,
 
 def evaluateModels(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring, gridSearches: List[GridSearchRun]) -> Results:
     return Results(pd.concat([evaluateModel(testX, testY, scoringConfig, gs) for gs in gridSearches]))
+
+
+# Could use better name
+def runGridSearchWithConfigs(X: pd.DataFrame, Y: pd.Series,
+                             scalingConfigs: List[ScalerConfig], testSize: float,
+                             randomState: int, scoringConfig: Scoring,
+                             models: List[ModelWithParams],
+                             foldingStrategies: List[Folding], targetScore, runName: str):
+    print(f"Starting {runName}")
+    print(f"X: {X.shape}")
+    print(f"Y: {Y.shape}")
+    dirPath = f"./results/{runName}"
+
+    utils.makeDirectoryIfNotExists(dirPath)
+
+    trainX, testX, trainY, testY = model_selection.train_test_split(
+        X, Y, test_size=testSize, random_state=randomState, stratify=Y)
+
+    # Create Configs
+    gridSearchConfigs = createGridSearchConfigs(
+        models, scalingConfigs, foldingStrategies, [scoringConfig])
+
+    # Run Training
+    res = runMultipleGridSearches(gridSearchConfigs, targetScore,
+                                  trainX, trainY)
+    resultsDF = resultsToDataFrame(res)
+
+    # Save Plots
+    for s in getTestScoreNames(scoringConfig):
+        plotResultsGroupedByModel(resultsDF, s,
+                                  f"{dirPath}/train_groupedModelPlots",
+                                  title=f"trainSet - {s}")
+
+    plotResults3d(resultsDF, f"mean_test_{targetScore}",
+                  f"{dirPath}/train_plotResults3d")
+    resultsDF.to_csv(f"{dirPath}/train_results.csv")
+
+    # Output Best Info
+    print("\n--- FINISHED ---\n")
+    print(f"Ran {len(res)} Configs")
+    printBestResult(res)
+
+    testResultsDF = evaluateModels(testX, testY, scoringConfig, res)
+    for s in scoringConfig.keys():
+        plotResultsGroupedByModel(testResultsDF, s,
+                                  f"{dirPath}/test_groupedModelPlots",
+                                  title=f"testSet - {s}")
+    plotResults3d(testResultsDF, targetScore,
+                  f"{dirPath}/test_plotResults3d")
+    testResultsDF.to_csv(f"{dirPath}/test_results.csv")

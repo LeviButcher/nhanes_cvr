@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Tuple
+import toolz as toolz
 import pandas as pd
 import nhanes_cvr.combinefeatures as cf
 from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
@@ -8,6 +9,7 @@ from nhanes_dl import download
 import nhanes_cvr.gridsearch as gs
 import nhanes_cvr.utils as utils
 import nhanes_dl.types as types
+import nhanes_cvr.selection as select
 
 
 # CONFIGURATION VARIABLES
@@ -21,6 +23,9 @@ randomState = 42
 folds = 10
 foldRepeats = 10
 testSize = .20
+correlationThreshold = 0.1
+zScoreThreshold = 2.9
+nullThreshold = 3
 
 foldingStrategies = [
     model_selection.KFold(n_splits=folds, shuffle=True,
@@ -310,6 +315,13 @@ notNullCombineConfig = [
     # # Might add Sleep, Weight History,
 ]
 
+# Save CSV of combinationConfigs
+ccDF = cf.combineFeaturesToDataFrame(combineConfigs)
+ccDF.to_csv("./results/handpicked_features.csv")
+ccDF = cf.combineFeaturesToDataFrame(notNullCombineConfig)
+ccDF.to_csv("./results/handpickedNoNull_features.csv")
+keepNullConfig = cf.noPostProcessingForAll(notNullCombineConfig)
+
 # Download NHANES
 updateCache = utils.doesNHANESNeedRedownloaded(downloadConfig)
 NHANES_DATASET = utils.cache_nhanes("./data/nhanes.csv",
@@ -333,165 +345,67 @@ mortalityCols = [x for x in download.mortality_colnames
                  if x not in download.drop_columns]
 featuresToScale = [cf.meanMissingReplacement.__name__]
 
-
-# --- HAND PICKED FEATURES TRAINING ---
-
-
-def runHandPickedFeatures():
-    runName = "handpicked"
-    ccDF = cf.combineFeaturesToDataFrame(combineConfigs)
-    ccDF.to_csv("./results/handpicked_features.csv")
-
-    X = cf.runCombines(combineConfigs, dataset)
-    Y = utils.labelCauseOfDeathAsCVR(dataset)
-
-    withoutScalingFeatures = [
-        c.combinedName for c in combineConfigs if c.postProcess.__name__ not in featuresToScale]
-    print(f"Not Scaling: {withoutScalingFeatures}")
-
-    scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
-        scalers, X, withoutScalingFeatures)
-    runGridSearch(X, Y, scalingConfigs, runName)
+originalY = utils.labelCauseOfDeathAsCVR(dataset)
+originalX = dataset.drop(columns=mortalityCols)  # type: ignore
+withoutScalingFeatures = [
+    c.combinedName for c in combineConfigs if c.postProcess.__name__ not in featuresToScale]
+withoutScalingFeaturesForNoNull = [
+    c.combinedName for c in notNullCombineConfig if c.postProcess.__name__ not in featuresToScale]
 
 
-def runHandPickedNoNulls():
-    runName = "handPickedNoNulls"
-    ccDF = cf.combineFeaturesToDataFrame(notNullCombineConfig)
-    ccDF.to_csv("./results/handpickedNoNull_features.csv")
-    keepNullConfig = cf.noPostProcessingForAll(notNullCombineConfig)
-    X = cf.runCombines(keepNullConfig, dataset)
-    Y = utils.labelCauseOfDeathAsCVR(dataset)
-    notNull = X.notnull().all(axis=1)
-    X = X.loc[notNull, :]
-    Y = Y.loc[notNull]
-    print(X.shape)
-    print(Y.shape)
-    print(f"True % = {Y[Y == 1].count() / (Y.shape[0])}")
+gridSearchSelections = [
+    ("handpicked",
+     select.handPickedSelection(combineConfigs),
+     gs.createScalerConfigsIgnoreFeatures(scalers, withoutScalingFeatures)),
 
-    # exit()
+    ("handpickedNoNulls",
+     toolz.compose_left(
+         select.handPickedSelection(keepNullConfig),
+         select.removeNullSamples,
+     ),
+     gs.createScalerConfigsIgnoreFeatures(
+         scalers, withoutScalingFeaturesForNoNull)),
 
-    withoutScalingFeatures = [
-        c.combinedName for c in notNullCombineConfig if c.postProcess.__name__ not in featuresToScale]
-    print(f"Not Scaling: {withoutScalingFeatures}")
+    ("handPickedNoNullsAndRemoveOutliers",
+     toolz.compose_left(
+         select.handPickedSelection(keepNullConfig),
+         select.removeNullSamples,
+         select.removeOutliers(zScoreThreshold),
+     ),
+     gs.createScalerConfigsIgnoreFeatures(
+         scalers, withoutScalingFeaturesForNoNull)),
 
-    scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
-        scalers, X, withoutScalingFeatures)
-    runGridSearch(X, Y, scalingConfigs, runName)
+    ("correlation",
+     toolz.compose_left(
+         select.correlationSelection(correlationThreshold),
+         select.fillNullWithMean
+     ),
+     gs.createScalerAllFeatures(scalers)),
 
+    ("correlationNoNullsFromThreshold",
+     toolz.compose_left(
+         select.correlationSelection(correlationThreshold),
+         select.dropSamples(nullThreshold),
+         select.fillNullWithMean
+     ),
+     gs.createScalerAllFeatures(scalers)),
+    ("correlationNoNullsFromThresholdAndRemoveOutliers",
+     toolz.compose_left(
+         select.correlationSelection(correlationThreshold),
+         select.dropSamples(nullThreshold),
+         select.fillNullWithMean,
+         select.removeOutliers(zScoreThreshold)
+     ),
+        gs.createScalerAllFeatures(scalers)),
+]
 
-def runHandPickedNoNullsAndOutliers():
-    runName = "handPickedNoNullsAndOutliers"
-    ccDF = cf.combineFeaturesToDataFrame(notNullCombineConfig)
-    ccDF.to_csv("./results/handpickedNoNull_features.csv")
-    keepNullConfig = cf.noPostProcessingForAll(notNullCombineConfig)
-    X = cf.runCombines(keepNullConfig, dataset)
-    Y = utils.labelCauseOfDeathAsCVR(dataset)
-    notNull = X.notnull().all(axis=1)
-    X = X.loc[notNull, :]
-    Y = Y.loc[notNull]
+for name, selectF, getScalingConfigs in gridSearchSelections:
+    from datetime import datetime
+    X, Y = selectF((originalX, originalY))
+    scalingConfigs = getScalingConfigs(X)
 
-    noOutliers = utils.remove_outliers(2.9, X)
-    X = X.loc[noOutliers, :]
-    Y = Y.loc[noOutliers]
-
-    print(X.shape)
-    print(Y.shape)
-    print(f"True % = {Y[Y == 1].count() / (Y.shape[0])}")
-
-    withoutScalingFeatures = [
-        c.combinedName for c in notNullCombineConfig if c.postProcess.__name__ not in featuresToScale]
-    print(f"Not Scaling: {withoutScalingFeatures}")
-    # exit()
-
-    scalingConfigs = gs.createScalerConfigsIgnoreFeatures(
-        scalers, X, withoutScalingFeatures)
-    runGridSearch(X, Y, scalingConfigs, runName)
-
-
-# --- CORRELATION TRAINING ---
-
-def runCorrelationFeatureSelectionDropNulls():
-    runName = "correlationNoNulls"
-    threshold = 0.1
-
-    # NOTE: Should null be dropped before or after corrrelation?
-    filteredDataset = dataset.assign(
-        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)  # type: ignore
-    cor = filteredDataset.corr()
-    cor_target = abs(cor["Y"])[:-1]  # Cut off Y correlation with -1
-    relevant_features = cor_target[cor_target > threshold]
-
-    relevant_features.to_csv(f"./results/{runName}_correlatedFeatures.csv")
-
-    X = filteredDataset.loc[:, relevant_features.index.values]
-    X = X.assign(Y=filteredDataset.Y).dropna(thresh=3, axis=0)
-
-    Y = X.Y
-    X = X.drop(columns=["Y"])
-    X = X.fillna(X.mean())
-
-    scalingConfigs = gs.createScalerAllFeatures(scalers, X)
-    runGridSearch(X, Y, scalingConfigs, runName)
-
-
-def runCorrelationFeatureSelection():
-    runName = "correlation"
-    threshold = 0.1
-
-    # Correlation Selection
-    # Followed article: https://towardsdatascience.com/feature-selection-with-pandas-e3690ad8504b
-    filteredDataset = dataset.assign(
-        Y=utils.labelCauseOfDeathAsCVR(dataset)).drop(columns=mortalityCols)  # type: ignore
-    cor = filteredDataset.corr()
-    cor_target = abs(cor["Y"])[:-1]  # Cut off Y correlation with -1
-    relevant_features = cor_target[cor_target > threshold]
-
-    relevant_features.to_csv(f"./results/{runName}_correlatedFeatures.csv")
-
-    X = filteredDataset.loc[:, relevant_features.index.values]
-    X = X.fillna(X.mean())
-    Y = filteredDataset.Y
-
-    scalingConfigs = gs.createScalerAllFeatures(scalers, X)
-    runGridSearch(X, Y, scalingConfigs, runName)
-
-
-# Abstract function to quickly run the gridSearchs using different X/Y/scalingConfigs
-
-
-def runGridSearch(X: pd.DataFrame, Y: pd.Series, scalingConfigs: List[gs.ScalerConfig], runName: str):
-    print(f"Starting {runName}")
-    print(f"X: {X.shape}")
-    print(f"Y: {Y.shape}")
-
-    trainX, testX, trainY, testY = model_selection.train_test_split(
-        X, Y, test_size=testSize, random_state=randomState, stratify=Y)
-
-    # Create Configs
-    gridSearchConfigs = gs.createGridSearchConfigs(
-        models, scalingConfigs, foldingStrategies, [scoringConfig])
-
-    # Run Training
-    res = gs.runMultipleGridSearchs(
-        gridSearchConfigs, targetScore, trainX, trainY)
-    resultsDF = gs.resultsToDataFrame(res)
-
-    # Save Plots
-    [gs.plotResultsGroupedByModel(
-        resultsDF, s, f"./results/{runName}_train_groupedModelPlots") for s in gs.resultsScores(res[0][1])]
-
-    gs.plotResults3d(resultsDF, f"mean_test_{targetScore}",
-                     f"./results/{runName}_train_plotResults3d")
-    resultsDF.to_csv(f"./results/{runName}_train_results.csv")
-
-    # Output Best Info
-    print("\n--- FINISHED ---\n")
-    print(f"Ran {len(res)} Configs")
-    gs.printBestResult(res)
-
-    testResultsDF = gs.evaluateModels(testX, testY, scoringConfig, res)
-    [gs.plotResultsGroupedByModel(
-        testResultsDF, s, f"./results/{runName}_test_groupedModelPlots") for s in scoringConfig.keys()]
-    gs.plotResults3d(testResultsDF, targetScore,
-                     f"./results/{runName}_test_plotResults3d")
-    testResultsDF.to_csv(f"./results/{runName}_test_results.csv")
+    start = datetime.now()
+    gs.runGridSearchWithConfigs(X, Y, scalingConfigs, testSize,
+                                randomState, scoringConfig, models,
+                                foldingStrategies, targetScore, name)
+    print(f"\n\n{name} - {datetime.now() - start}\n\n")

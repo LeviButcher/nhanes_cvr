@@ -5,3 +5,4 @@ matplotlib
 pytest
 nhanes-dl
 seaborn
+toolz
