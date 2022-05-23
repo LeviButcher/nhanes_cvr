@@ -240,11 +240,11 @@ def runGridSearchWithConfigs(X: pd.DataFrame, Y: pd.Series,
                              scalingConfigs: List[ScalerConfig], testSize: float,
                              randomState: int, scoringConfig: Scoring,
                              models: List[ModelWithParams],
-                             foldingStrategies: List[Folding], targetScore, runName: str):
+                             foldingStrategies: List[Folding], targetScore, runName: str, saveDir: str):
     print(f"Starting {runName}")
     print(f"X: {X.shape}")
     print(f"Y: {Y.shape}")
-    dirPath = f"./results/{runName}"
+    dirPath = f"{saveDir}/{runName}"
 
     utils.makeDirectoryIfNotExists(dirPath)
 

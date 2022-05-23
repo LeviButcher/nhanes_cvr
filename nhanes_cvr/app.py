@@ -38,6 +38,14 @@ foldingStrategies = [
     # RepeatedBalancedKFold(n_splits=10, n_repeats=10)
 ]
 
+# Setup functions to label cause of death differently
+normalCVRDeath = [utils.LeadingCauseOfDeath.HEART_DISEASE,
+                  utils.LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE]
+expandedCVRDeath = normalCVRDeath + \
+    [utils.LeadingCauseOfDeath.DIABETES_MELLITUS]
+labelMethods = [("method1", utils.labelCVR(normalCVRDeath)),
+                ("method2", utils.labelCVR(expandedCVRDeath))]
+
 
 # Store Model in Thunks to ensure recreation of new model every GridSearch
 models = [
@@ -345,8 +353,7 @@ mortalityCols = [x for x in download.mortality_colnames
                  if x not in download.drop_columns]
 featuresToScale = [cf.meanMissingReplacement.__name__]
 
-originalY = utils.labelCauseOfDeathAsCVR(dataset)
-originalX = dataset.drop(columns=mortalityCols)  # type: ignore
+
 withoutScalingFeatures = [
     c.combinedName for c in combineConfigs if c.postProcess.__name__ not in featuresToScale]
 withoutScalingFeaturesForNoNull = [
@@ -399,13 +406,21 @@ gridSearchSelections = [
         gs.createScalerAllFeatures(scalers)),
 ]
 
-for name, selectF, getScalingConfigs in gridSearchSelections:
-    from datetime import datetime
-    X, Y = selectF((originalX, originalY))
-    scalingConfigs = getScalingConfigs(X)
+for labelName, getY in labelMethods:
+    originalY = getY(dataset)
+    originalX = dataset.drop(columns=mortalityCols)  # type: ignore
+    saveDir = f"results/{labelName}"
 
-    start = datetime.now()
-    gs.runGridSearchWithConfigs(X, Y, scalingConfigs, testSize,
-                                randomState, scoringConfig, models,
-                                foldingStrategies, targetScore, name)
-    print(f"\n\n{name} - {datetime.now() - start}\n\n")
+    utils.makeDirectoryIfNotExists(saveDir)
+
+    for name, selectF, getScalingConfigs in gridSearchSelections:
+        from datetime import datetime
+        X, Y = selectF((originalX, originalY))
+        scalingConfigs = getScalingConfigs(X)
+
+        start = datetime.now()
+        gs.runGridSearchWithConfigs(X, Y, scalingConfigs, testSize,
+                                    randomState, scoringConfig, models,
+                                    foldingStrategies, targetScore,
+                                    name, saveDir)
+        print(f"\n\n{name} - {datetime.now() - start}\n\n")

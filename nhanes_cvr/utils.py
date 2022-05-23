@@ -1,10 +1,12 @@
-from typing import Callable, List, Set
+from enum import Enum
+from typing import Callable, List, Set, TypeVar
 import numpy as np
 import pandas as pd
 from scipy import stats
 from nhanes_dl import download, types
 from typing import List
 import pandas as pd
+from toolz import curry
 
 
 def getClassName(x) -> str:
@@ -20,22 +22,41 @@ def toUpperCase(l):
 
 def yearToMonths(x): return 12 * x
 
+# Different meanings of ucod_leading - https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
 
-def labelCauseOfDeathAsCVR(nhanse_dataset: pd.DataFrame) -> pd.Series:
-    # Different meanings of ucod_leading - https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
-    # 1 is Diesease of heart
-    # 5 is Cerebrovascular Diseases
 
-    # TODO: Encode UCOD_LEADING as a enum
-    def isCVR(
-        X): return X.UCOD_LEADING == 1 or X.UCOD_LEADING == 5
-    # or X.UCOD_LEADING == 7
+class LeadingCauseOfDeath(Enum):
+    HEART_DISEASE = 1
+    MALIGNANT_NEOPLASMS = 2
+    CHRONIC_LOWER_RESPIRATORY_DISEASE = 3
+    ACCIDENTS = 4
+    CEREBROVASCULAR_DISEASE = 5
+    ALZHEIMERS_DISEASE = 6
+    DIABETES_MELLITUS = 7
+    INFLUENZA_PNEUMONIA = 8
+    NEPHRITIS_NEPHROTICSYNDROME_NEPHROSIS = 9
+    ALL_OTHER_CAUSES = 10
 
-    # monthsSinceFollowUp = 326 * .5
-    # return nhanse_dataset.agg(lambda x: 1 if x.PERMTH_EXM <= monthsSinceFollowUp
-    #                           and isCVR(x) else 0, axis=1)
 
-    return nhanse_dataset.agg(isCVR, axis=1)
+GETY = Callable[[pd.DataFrame], int]
+
+
+@curry
+def labelY(func: GETY, dataset: pd.DataFrame) -> pd.Series:
+    return dataset.agg(func, axis=1)
+
+
+T = TypeVar('T')
+
+
+def exists(xs: List[T], x: T) -> bool:
+    return any([x == y for y in xs])
+
+
+@curry
+def labelCVR(causes: List[LeadingCauseOfDeath], nhanes_dataset: pd.DataFrame) -> pd.Series:
+    def toCauseOfDeath(x): return LeadingCauseOfDeath(int(x))
+    return labelY(lambda X: 1 if exists(causes, toCauseOfDeath(X.UCOD_LEADING)) else 0, nhanes_dataset)
 
 
 def removeOutliers(z_score, df, columns=None):
