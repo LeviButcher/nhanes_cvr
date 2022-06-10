@@ -53,10 +53,24 @@ def exists(xs: List[T], x: T) -> bool:
     return any([x == y for y in xs])
 
 
+def toCauseOfDeath(x): return LeadingCauseOfDeath(int(x))
+
+
 @curry
 def labelCVR(causes: List[LeadingCauseOfDeath], nhanes_dataset: pd.DataFrame) -> pd.Series:
-    def toCauseOfDeath(x): return LeadingCauseOfDeath(int(x))
     return labelY(lambda X: 1 if exists(causes, toCauseOfDeath(X.UCOD_LEADING)) else 0, nhanes_dataset)
+
+
+def labelCVRAndDiabetes(nhanes_dataset: pd.DataFrame) -> pd.Series:
+    def labelFunc(X: pd.DataFrame) -> int:
+        cause = toCauseOfDeath(X.UCOD_LEADING)
+        if exists([LeadingCauseOfDeath.HEART_DISEASE, LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE], cause):
+            return 1
+        elif cause == LeadingCauseOfDeath.DIABETES_MELLITUS:
+            return 2
+        return 0
+
+    return labelY(labelFunc, nhanes_dataset)
 
 
 def removeOutliers(z_score, df, columns=None):

@@ -41,3 +41,4 @@
 39,['LBXGH'],GLYCOHEMOGLOBIN,firstNonNullCombine,meanMissingReplacement
 40,['LBXSBU'],BLOOD_UREA_NITROGEN,firstNonNullCombine,meanMissingReplacement
 41,['LBXSCR'],CREATINE,firstNonNullCombine,meanMissingReplacement
+42,['MCQ010'],TOLD_HAVE_ASTHMA,firstNonNullCombine,standardYesNoProcessor

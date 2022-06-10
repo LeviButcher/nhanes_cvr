@@ -12,8 +12,6 @@ Selection = Callable[[pd.DataFrame, pd.Series], XYPair]
 # Correlation Selection
 # Followed article: https://towardsdatascience.com/feature-selection-with-pandas-e3690ad8504b
 
-# NOTE: Want to make it where I can transform a selection method to remove null or remove outliers
-
 
 @curry
 def correlationSelectionFillNulls(threshold, data: XYPair) -> XYPair:

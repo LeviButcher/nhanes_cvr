@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn import preprocessing, model_selection, linear_model
+from sklearn import decomposition, metrics, preprocessing, model_selection, linear_model, cluster
 from sklearn.model_selection import GridSearchCV
 from typing import Any, Dict, List, NamedTuple, NewType, Tuple, Union, Callable
 from functools import reduce
@@ -8,8 +8,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import nhanes_cvr.utils as utils
 from toolz import curry
-
-sns.set(style="darkgrid")
 
 # Sucks to have to type each one out but it makes this type safe
 Model = Callable[[], linear_model.LinearRegression]
@@ -34,6 +32,10 @@ def emptyConfig(scaler: Scaler) -> ScalerConfig:
 
 def createScalerConfigs(scalers: List[Scaler], features: List[str]) -> List[ScalerConfig]:
     return [ScalerConfig(s, features) for s in scalers]
+
+
+def getScalerName(sc: ScalerConfig) -> str:
+    return utils.getClassName(sc.scaler)
 
 
 @curry
@@ -75,12 +77,11 @@ def runScaling(config: ScalerConfig, X: pd.DataFrame, Y: pd.Series) -> pd.DataFr
 class GridSearchConfig(NamedTuple):
     model: Model
     modelParams: ModelParams
-    scalerConfig: ScalerConfig
     folding: Folding
     scoring: Scoring
 
     def __str__(self):
-        return f"{getClassName(self.model())} - {getClassName(self.scalerConfig.scaler)} - {getClassName(self.folding)}"
+        return f"{getClassName(self.model())} - {getClassName(self.folding)}"
 
 
 GridSearchRun = Tuple[GridSearchConfig, FittedGridSearch]
@@ -89,16 +90,12 @@ GridSearchRun = Tuple[GridSearchConfig, FittedGridSearch]
 def runGridSearch(config: GridSearchConfig, target: str, X: pd.DataFrame, Y: pd.Series) -> FittedGridSearch:
     print(f"Run Grid Search -> {config}")
 
-    # NOTE: Scales multiple times
-    # Don't really care about performance impact
-    scaled = runScaling(config.scalerConfig, X, Y)
-
     res = GridSearchCV(
         estimator=config.model(), param_grid=config.modelParams, cv=config.folding,
         refit=target, scoring=config.scoring, return_train_score=True,
         n_jobs=10)
 
-    return res.fit(scaled, Y)
+    return res.fit(X, Y)
 
 
 def runMultipleGridSearches(configs: List[GridSearchConfig], target: str, X: pd.DataFrame, Y: pd.Series) -> List[GridSearchRun]:
@@ -113,13 +110,11 @@ def runMultipleGridSearchesAsync(configs: List[GridSearchConfig], target: str, X
             lambda c: runGridSearch(c, target, X, Y), configs)))
 
 
-def createGridSearchConfigs(modelConfigs: List[ModelWithParams],
-                            scalers: List[ScalerConfig], foldings: List[Folding],
+def createGridSearchConfigs(modelConfigs: List[ModelWithParams], foldings: List[Folding],
                             scoringList: List[Scoring]) -> List[GridSearchConfig]:
 
-    return [GridSearchConfig(m, mp, s, f, scoring)
+    return [GridSearchConfig(m, mp, f, scoring)
             for (m, mp) in modelConfigs
-            for s in scalers
             for f in foldings
             for scoring in scoringList
             ]
@@ -145,9 +140,9 @@ def resultToDataFrame(config: GridSearchConfig, res: FittedGridSearch) -> Result
     # TODO add best params string to res
     names = resultsScores(res)
     runInfo = [getClassName(x)
-               for x in [config.model(), config.scalerConfig.scaler, config.folding]]
+               for x in [config.model(), config.folding]]
     row = runInfo + [res.cv_results_[x][best] for x in names]
-    columns = ["model", "scaler", "folding"] + names
+    columns = ["model", "folding"] + names
 
     return Results(pd.DataFrame([row], columns=columns))
 
@@ -224,9 +219,9 @@ def evaluateModel(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring,
     scoreValues = [f(model, testX, testY) for (_, f) in scoringConfig.items()]
     scoreNames = [n for n in scoringConfig.keys()]
     runInfo = [getClassName(x)
-               for x in [config.model(), config.scalerConfig.scaler, config.folding]]
+               for x in [config.model(), config.folding]]
     row = runInfo + scoreValues
-    columns = ["model", "scaler", "folding"] + scoreNames
+    columns = ["model", "folding"] + scoreNames
 
     return Results(pd.DataFrame([row], columns=columns))
 
@@ -236,39 +231,24 @@ def evaluateModels(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring
 
 
 # Could use better name
-def runGridSearchWithConfigs(X: pd.DataFrame, Y: pd.Series,
-                             scalingConfigs: List[ScalerConfig], testSize: float,
+def runAndEvaluateGridSearch(X: pd.DataFrame, Y: pd.Series, testSize: float,
                              randomState: int, scoringConfig: Scoring,
                              models: List[ModelWithParams],
-                             foldingStrategies: List[Folding], targetScore, runName: str, saveDir: str):
-    print(f"Starting {runName}")
+                             foldingStrategies: List[Folding], targetScore):
     print(f"X: {X.shape}")
     print(f"Y: {Y.shape}")
-    dirPath = f"{saveDir}/{runName}"
-
-    utils.makeDirectoryIfNotExists(dirPath)
 
     trainX, testX, trainY, testY = model_selection.train_test_split(
         X, Y, test_size=testSize, random_state=randomState, stratify=Y)
 
     # Create Configs
     gridSearchConfigs = createGridSearchConfigs(
-        models, scalingConfigs, foldingStrategies, [scoringConfig])
+        models, foldingStrategies, [scoringConfig])
 
     # Run Training
     res = runMultipleGridSearches(gridSearchConfigs, targetScore,
                                   trainX, trainY)
-    resultsDF = resultsToDataFrame(res)
-
-    # Save Plots
-    for s in getTestScoreNames(scoringConfig):
-        plotResultsGroupedByModel(resultsDF, s,
-                                  f"{dirPath}/train_groupedModelPlots",
-                                  title=f"trainSet - {s}")
-
-    plotResults3d(resultsDF, f"mean_test_{targetScore}",
-                  f"{dirPath}/train_plotResults3d")
-    resultsDF.to_csv(f"{dirPath}/train_results.csv")
+    trainResultsDF = resultsToDataFrame(res)
 
     # Output Best Info
     print("\n--- FINISHED ---\n")
@@ -276,10 +256,27 @@ def runGridSearchWithConfigs(X: pd.DataFrame, Y: pd.Series,
     printBestResult(res)
 
     testResultsDF = evaluateModels(testX, testY, scoringConfig, res)
-    for s in scoringConfig.keys():
-        plotResultsGroupedByModel(testResultsDF, s,
-                                  f"{dirPath}/test_groupedModelPlots",
-                                  title=f"testSet - {s}")
-    plotResults3d(testResultsDF, targetScore,
-                  f"{dirPath}/test_plotResults3d")
-    testResultsDF.to_csv(f"{dirPath}/test_results.csv")
+
+    results = trainResultsDF.set_index(["model", "folding"]).join(testResultsDF.set_index(
+        ["model", "folding"]), how="inner", lsuffix="_train", rsuffix="_test")
+
+    return results.reset_index()
+
+
+def kMeansSeparation(gs: GridSearchRun, X: pd.DataFrame, cvrType: pd.Series, savePath: str):
+    # Need to make it where every model is kMean evaluated
+    _, model = gs
+
+    # predictedCVR = model.predict(X)
+    # onlyCVRX = X.loc[predictedCVR == 1, :]
+    kMeans = cluster.KMeans(n_clusters=3)
+
+    predictY = kMeans.fit_predict(X)
+    trueY = cvrType.loc[X.index]
+
+    cm = metrics.confusion_matrix(trueY, predictY)
+
+    disp = metrics.ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.savefig(f"{savePath}/k_means")
+    plt.close()

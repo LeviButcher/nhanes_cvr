@@ -1,8 +1,9 @@
-from typing import List, Tuple
+from datetime import datetime
+from matplotlib import pyplot as plt
 import toolz as toolz
 import pandas as pd
 import nhanes_cvr.combinefeatures as cf
-from sklearn import ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model
+from sklearn import decomposition, ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model, cluster
 from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
 from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
 from nhanes_dl import download
@@ -10,6 +11,10 @@ import nhanes_cvr.gridsearch as gs
 import nhanes_cvr.utils as utils
 import nhanes_dl.types as types
 import nhanes_cvr.selection as select
+import seaborn as sns
+
+# Matplotlib/Seaborn Theming
+sns.set_theme()
 
 
 # CONFIGURATION VARIABLES
@@ -17,19 +22,19 @@ scoringConfig = {"precision": make_scorer(precision_score, average="binary", zer
                  "recall": make_scorer(recall_score, average="binary", zero_division=0),
                  "f1": make_scorer(f1_score, average="binary", zero_division=0),
                  "accuracy": make_scorer(accuracy_score)}
-targetScore = "precision"
+targetScore = "accuracy"
 maxIter = 200
 randomState = 42
 folds = 10
 foldRepeats = 10
-testSize = .20
+testSize = .25
 correlationThreshold = 0.1
 zScoreThreshold = 2.9
 nullThreshold = 3
 
 foldingStrategies = [
-    model_selection.KFold(n_splits=folds, shuffle=True,
-                          random_state=randomState),
+    # model_selection.KFold(n_splits=folds, shuffle=True,
+    #                       random_state=randomState),
     model_selection.StratifiedKFold(
         n_splits=folds, shuffle=True, random_state=randomState),
     BalancedKFold(n_splits=folds, shuffle=True, random_state=randomState),
@@ -41,10 +46,12 @@ foldingStrategies = [
 # Setup functions to label cause of death differently
 normalCVRDeath = [utils.LeadingCauseOfDeath.HEART_DISEASE,
                   utils.LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE]
-expandedCVRDeath = normalCVRDeath + \
-    [utils.LeadingCauseOfDeath.DIABETES_MELLITUS]
-labelMethods = [("method1", utils.labelCVR(normalCVRDeath)),
-                ("method2", utils.labelCVR(expandedCVRDeath))]
+diabetesDeath = [utils.LeadingCauseOfDeath.DIABETES_MELLITUS]
+expandedCVRDeath = normalCVRDeath + diabetesDeath
+labelMethods = [("cvr_death", utils.labelCVR(normalCVRDeath)),
+                ("diabetes_death", utils.labelCVR(diabetesDeath)),
+                ("cvr_diabetes_death", utils.labelCVR(expandedCVRDeath))
+                ]
 
 
 # Store Model in Thunks to ensure recreation of new model every GridSearch
@@ -100,10 +107,11 @@ models = [
       "leaf_size": [30, 50]
       }),
 
-    (lambda: neural_network.MLPClassifier(shuffle=True, max_iter=maxIter), {
+    (lambda: neural_network.MLPClassifier(shuffle=True, max_iter=maxIter, random_state=randomState), {
      "activation": ["logistic", "tanh", "relu"],
-     "solver": ["sgd", "adam"],
-     "learning_rate":["invscaling", "adaptive"]
+     "solver": ["sgd"],
+     "learning_rate":["invscaling"],
+     "learning_rate_init":[1e-2, 1e-3]
      }),
 
     (lambda: svm.LinearSVC(random_state=42), [
@@ -130,33 +138,33 @@ scalers = [
 
 # NOTE: Most studies I've seen don't use the earlier years of nhanes
 # Probably cause it's harder to combine with them
-downloadConfig = {
-    download.CodebookDownload(types.ContinuousNHANES.First,
-                              "LAB13", "LAB13AM", "LAB10AM", "LAB18", "CDQ",
-                              "DIQ", "BPQ", "BMX", "DEMO", "BPX"),
-    download.CodebookDownload(types.ContinuousNHANES.Second,
-                              "L13_B", "L13AM_B", "L10AM_B", "L10_2_B",
-                              "CDQ_B", "DIQ_B", "BPQ_B", "BMX_B", "DEMO_B", "BPX_B"),
-    download.CodebookDownload(types.ContinuousNHANES.Third,
-                              "L13_C", "L13AM_C", "L10AM_C", "CDQ_C", "DIQ_C",
-                              "BPQ_C", "BMX_C", "DEMO_C", "BPX_C"),
-    # Everything past this point has the same codebooks
-    download.CodebookDownload(types.ContinuousNHANES.Fourth,
-                              "TCHOL_D", "TRIGLY_D", "HDL_D", "GLU_D", "CDQ_D",
-                              "DIQ_D", "BPQ_D", "BMX_D", "DEMO_D", "BPX_D"),
-    download.CodebookDownload(types.ContinuousNHANES.Fifth,
-                              "TCHOL_E", "TRIGLY_E", "HDL_E", "GLU_E", "CDQ_E",
-                              "DIQ_E", "BPQ_E", "BMX_E", "DEMO_E", "BPX_E"),
-    download.CodebookDownload(types.ContinuousNHANES.Sixth,
-                              "TCHOL_F", "TRIGLY_F", "HDL_F", "GLU_F", "CDQ_F",
-                              "DIQ_F", "BPQ_F", "BMX_F", "DEMO_F", "BPX_F"),
-    download.CodebookDownload(types.ContinuousNHANES.Seventh,
-                              "TCHOL_G", "TRIGLY_G", "HDL_G", "GLU_G", "CDQ_G",
-                              "DIQ_G", "BPQ_G", "BMX_G", "DEMO_G", "BPX_G"),
-    download.CodebookDownload(types.ContinuousNHANES.Eighth,
-                              "TCHOL_H", "TRIGLY_H", "HDL_H", "GLU_H", "CDQ_H",
-                              "DIQ_H", "BPQ_H", "BMX_H", "DEMO_H", "BPX_H"),
-}
+# downloadConfig = {
+#     download.CodebookDownload(types.ContinuousNHANES.First,
+#                               "LAB13", "LAB13AM", "LAB10AM", "LAB18", "CDQ",
+#                               "DIQ", "BPQ", "BMX", "DEMO", "BPX"),
+#     download.CodebookDownload(types.ContinuousNHANES.Second,
+#                               "L13_B", "L13AM_B", "L10AM_B", "L10_2_B",
+#                               "CDQ_B", "DIQ_B", "BPQ_B", "BMX_B", "DEMO_B", "BPX_B"),
+#     download.CodebookDownload(types.ContinuousNHANES.Third,
+#                               "L13_C", "L13AM_C", "L10AM_C", "CDQ_C", "DIQ_C",
+#                               "BPQ_C", "BMX_C", "DEMO_C", "BPX_C"),
+#     # Everything past this point has the same codebooks
+#     download.CodebookDownload(types.ContinuousNHANES.Fourth,
+#                               "TCHOL_D", "TRIGLY_D", "HDL_D", "GLU_D", "CDQ_D",
+#                               "DIQ_D", "BPQ_D", "BMX_D", "DEMO_D", "BPX_D"),
+#     download.CodebookDownload(types.ContinuousNHANES.Fifth,
+#                               "TCHOL_E", "TRIGLY_E", "HDL_E", "GLU_E", "CDQ_E",
+#                               "DIQ_E", "BPQ_E", "BMX_E", "DEMO_E", "BPX_E"),
+#     download.CodebookDownload(types.ContinuousNHANES.Sixth,
+#                               "TCHOL_F", "TRIGLY_F", "HDL_F", "GLU_F", "CDQ_F",
+#                               "DIQ_F", "BPQ_F", "BMX_F", "DEMO_F", "BPX_F"),
+#     download.CodebookDownload(types.ContinuousNHANES.Seventh,
+#                               "TCHOL_G", "TRIGLY_G", "HDL_G", "GLU_G", "CDQ_G",
+#                               "DIQ_G", "BPQ_G", "BMX_G", "DEMO_G", "BPX_G"),
+#     download.CodebookDownload(types.ContinuousNHANES.Eighth,
+#                               "TCHOL_H", "TRIGLY_H", "HDL_H", "GLU_H", "CDQ_H",
+#                               "DIQ_H", "BPQ_H", "BMX_H", "DEMO_H", "BPX_H"),
+# }
 
 # Only generates for years Forth-Eighth
 downloadConfig = utils.generateDownloadConfig(["TCHOL", "TRIGLY", "HDL",
@@ -164,7 +172,7 @@ downloadConfig = utils.generateDownloadConfig(["TCHOL", "TRIGLY", "HDL",
                                                "BPQ", "BMX", "DEMO",
                                                "BPX", "SMQ", "DBQ",
                                                "PAQ", "CBC", "GHB",
-                                               "BIOPRO", "UIO"])
+                                               "BIOPRO", "UIO", "MCQ"])
 
 
 def standardYesNoProcessor(X):
@@ -272,6 +280,8 @@ combineConfigs = [
               postProcess=cf.meanMissingReplacement),
     cf.rename("LBXSCR", "CREATINE",
               postProcess=cf.meanMissingReplacement),
+
+    cf.rename("MCQ010", "TOLD_HAVE_ASTHMA", postProcess=standardYesNoProcessor)
 ]
 
 notNullCombineConfig = [
@@ -321,6 +331,7 @@ notNullCombineConfig = [
               postProcess=standardYesNoProcessor),
 
     # # Might add Sleep, Weight History,
+    cf.rename("MCQ010", "TOLD_HAVE_ASTHMA", postProcess=standardYesNoProcessor)
 ]
 
 # Save CSV of combinationConfigs
@@ -406,21 +417,53 @@ gridSearchSelections = [
         gs.createScalerAllFeatures(scalers)),
 ]
 
+start = datetime.now()
 for labelName, getY in labelMethods:
     originalY = getY(dataset)
+    cvrType = utils.labelCVRAndDiabetes(dataset)
     originalX = dataset.drop(columns=mortalityCols)  # type: ignore
     saveDir = f"results/{labelName}"
 
     utils.makeDirectoryIfNotExists(saveDir)
 
+    runInfoSeries = []
     for name, selectF, getScalingConfigs in gridSearchSelections:
-        from datetime import datetime
+        runSaveDir = f"{saveDir}/{name}"
+        utils.makeDirectoryIfNotExists(runSaveDir)
+
         X, Y = selectF((originalX, originalY))
         scalingConfigs = getScalingConfigs(X)
+        runResults = []
 
-        start = datetime.now()
-        gs.runGridSearchWithConfigs(X, Y, scalingConfigs, testSize,
-                                    randomState, scoringConfig, models,
-                                    foldingStrategies, targetScore,
-                                    name, saveDir)
-        print(f"\n\n{name} - {datetime.now() - start}\n\n")
+        for scaleConfig in scalingConfigs:
+            scaledX = gs.runScaling(scaleConfig, X, Y)
+            scalerName = gs.getScalerName(scaleConfig)
+            print(f"SCALING: {scalerName}")
+
+            results = gs.runAndEvaluateGridSearch(scaledX, Y, testSize,
+                                                  randomState, scoringConfig, models,
+                                                  foldingStrategies, targetScore).assign(scaler=scalerName)
+            runResults.append(results)
+
+        allResults = pd.concat(runResults)
+        allResults.to_csv(f"{runSaveDir}/results.csv")
+
+        # Train Plot
+        for s in gs.getTestScoreNames(scoringConfig):
+            gs.plotResultsGroupedByModel(allResults, s,  # type: ignore
+                                         f"{runSaveDir}/train_groupedModelPlots",
+                                         title=f"trainSet - {s}")
+
+        # Test Plot
+        for s in scoringConfig.keys():
+            gs.plotResultsGroupedByModel(allResults, s,  # type: ignore
+                                         f"{runSaveDir}/test_groupedModelPlots",
+                                         title=f"testSet - {s}")
+
+        totalTime = datetime.now() - start
+        info = pd.Series({"name": name, "xShape": X.shape,
+                          "yShape": Y.shape, "time": totalTime, "truePercent": Y[Y == 1].sum() / Y.shape[0]})
+        runInfoSeries.append(info)
+
+    runInfoDF = pd.DataFrame(runInfoSeries)
+    runInfoDF.to_csv(f"{saveDir}/runInfos.csv")

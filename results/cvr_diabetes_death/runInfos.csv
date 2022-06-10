@@ -1,0 +1,7 @@
+,name,xShape,yShape,time,truePercent
+0,handpicked,"(4530, 43)","(4530,)",0 days 01:30:57.542535,0.33421633554083885
+1,handpickedNoNulls,"(1336, 17)","(1336,)",0 days 01:33:07.047853,0.35479041916167664
+2,handPickedNoNullsAndRemoveOutliers,"(1181, 17)","(1181,)",0 days 01:35:02.067589,0.34292972057578325
+3,correlation,"(4530, 64)","(4530,)",0 days 01:54:12.111241,0.33421633554083885
+4,correlationNoNullsFromThreshold,"(4324, 64)","(4324,)",0 days 02:11:13.218384,0.3330249768732655
+5,correlationNoNullsFromThresholdAndRemoveOutliers,"(2815, 64)","(2815,)",0 days 02:18:56.377892,0.3325044404973357

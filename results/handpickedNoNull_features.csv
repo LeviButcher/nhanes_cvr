@@ -15,3 +15,4 @@
 13,['CDQ001'],CHEST_PAIN,firstNonNullCombine,standardYesNoProcessor
 14,['CDQ010'],SHORTNESS_OF_BREATHS,firstNonNullCombine,standardYesNoProcessor
 15,['SMQ020'],SMOKED_AT_LEAST_100_IN_LIFE,firstNonNullCombine,standardYesNoProcessor
+16,['MCQ010'],TOLD_HAVE_ASTHMA,firstNonNullCombine,standardYesNoProcessor
