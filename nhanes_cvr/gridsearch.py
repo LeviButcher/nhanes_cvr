@@ -234,7 +234,7 @@ def evaluateModels(testX: pd.DataFrame, testY: pd.Series, scoringConfig: Scoring
 def runAndEvaluateGridSearch(X: pd.DataFrame, Y: pd.Series, testSize: float,
                              randomState: int, scoringConfig: Scoring,
                              models: List[ModelWithParams],
-                             foldingStrategies: List[Folding], targetScore):
+                             foldingStrategies: List[Folding], targetScore, savePath):
     print(f"X: {X.shape}")
     print(f"Y: {Y.shape}")
 
@@ -260,23 +260,28 @@ def runAndEvaluateGridSearch(X: pd.DataFrame, Y: pd.Series, testSize: float,
     results = trainResultsDF.set_index(["model", "folding"]).join(testResultsDF.set_index(
         ["model", "folding"]), how="inner", lsuffix="_train", rsuffix="_test")
 
+    plotROCAUCForModels(res, testX, testY, f"{savePath}/rocauc")
+    plotPrecisionRecallCurvesForModels(
+        res, testX, testY, f"{savePath}/precision_recall_curve")
+
     return results.reset_index()
 
 
-def kMeansSeparation(gs: GridSearchRun, X: pd.DataFrame, cvrType: pd.Series, savePath: str):
-    # Need to make it where every model is kMean evaluated
-    _, model = gs
+def plotROCAUCForModels(models: List[GridSearchRun], X, Y, savePath):
+    for conf, m in models:
+        modelName = utils.getClassName(conf.model())
+        ax = plt.gca()
+        metrics.RocCurveDisplay.from_estimator(
+            estimator=m, X=X, y=Y, name=modelName, ax=ax)
+    plt.savefig(f"{savePath}")
+    plt.close()
 
-    # predictedCVR = model.predict(X)
-    # onlyCVRX = X.loc[predictedCVR == 1, :]
-    kMeans = cluster.KMeans(n_clusters=3)
 
-    predictY = kMeans.fit_predict(X)
-    trueY = cvrType.loc[X.index]
-
-    cm = metrics.confusion_matrix(trueY, predictY)
-
-    disp = metrics.ConfusionMatrixDisplay(confusion_matrix=cm)
-    disp.plot()
-    plt.savefig(f"{savePath}/k_means")
+def plotPrecisionRecallCurvesForModels(models: List[GridSearchRun], X, Y, savePath):
+    for conf, m in models:
+        modelName = utils.getClassName(conf.model())
+        ax = plt.gca()
+        metrics.PrecisionRecallDisplay.from_estimator(
+            estimator=m, X=X, y=Y, name=modelName, ax=ax)
+    plt.savefig(f"{savePath}")
     plt.close()

@@ -39,7 +39,8 @@ def test_firstNonNullCombine():
 
 class TestRunCombine:
     def test_runCombine(self):
-        conf = cf.CombineFeatures(["A"], "C", lambda x: x.A, cf.noProcessing)
+        conf = cf.CombineFeatures(
+            ["A"], "C", lambda x: x.A, cf.noPostProcessing)
 
         X = pd.DataFrame({"A": [1, 2, 3, 4, 5]})
 
@@ -51,7 +52,7 @@ class TestRunCombine:
 
     def test_runCombine_complex(self):
         conf = cf.CombineFeatures(
-            ["A", "B", "A"], "D", cf.meanCombine, cf.noProcessing)
+            ["A", "B", "A"], "D", cf.meanCombine, cf.noPostProcessing)
 
         X = pd.DataFrame({"A": [1, 2, 3, 4, 5],
                           "B": [5, 4, 3, 2, 1],
@@ -74,9 +75,9 @@ class TestRunCombine:
 
     def test_runCombines(self):
         configs = [
-            cf.rename("A", "Z", cf.noProcessing),
+            cf.rename("A", "Z", cf.noPostProcessing),
             cf.CombineFeatures(["A", "B"], "A+B",
-                               lambda X: X.A + X.B, cf.noProcessing)
+                               lambda X: X.A + X.B, cf.noPostProcessing)
         ]
         X = pd.DataFrame({"A": [1, 2, 3, 4, 5],
                           "B": [5, 4, 3, 2, 1],
