@@ -151,11 +151,11 @@ models = [
         'random_state': [randomState],
         'learning_rate': ['adaptive', 'invscaling']
     }]),
-    (svm.SVC, {
-        "C": [1, .9],
-        'kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
-        'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
-    }),
+    # (svm.SVC, {
+    #     "C": [1, .9],
+    #     'kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
+    #     'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
+    # }),
     (lambda: neighbors.KNeighborsClassifier(),
      {
         "weights": ["uniform", "distance"],
