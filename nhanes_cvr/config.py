@@ -123,22 +123,24 @@ models = [
              'solver': ['sag'],
              'penalty': ['l2'],
              'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
-             'C': [1, .9]
+             'C': [1, .9, .5]
          },
          {
              'solver': ['saga'],
              'penalty': ['elasticnet', 'l2', 'l1'],
              'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
              'random_state': [randomState],
-             'C': [1, .9]
+             'C': [1, .9, .5]
          }
      ]
      ),
     ((ensemble.RandomForestClassifier),
      {
-        'n_estimators': [100, 40],
-        'min_samples_split': [2, 4, 6],
+        'n_estimators': [100, 50],
+        'min_samples_split': [2, 4, 6, 12],
         'class_weight': [None, {0: .9, 1: .1}, 'balanced', 'balanced_subsample'],
+        'criterion': ['gini', 'entropy', 'log_loss'],
+        'max_features': ['sqrt', 'log2'],
         'random_state': [randomState]
     }),
     (neural_network.MLPClassifier, [{
@@ -156,12 +158,12 @@ models = [
     #     'kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
     #     'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
     # }),
-    (lambda: neighbors.KNeighborsClassifier(),
+    (neighbors.KNeighborsClassifier,
      {
-        "weights": ["uniform", "distance"],
-        "n_neighbors": [5, 10],
-        "leaf_size": [30, 50]
-    }),
+         "weights": ["uniform", "distance"],
+         "n_neighbors": [5, 10],
+         "leaf_size": [30, 50]
+     }),
 ]
 
 scalers = [
