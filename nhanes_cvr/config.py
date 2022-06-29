@@ -1,24 +1,17 @@
-from datetime import datetime
-from matplotlib import pyplot as plt
 import toolz as toolz
-import pandas as pd
 import nhanes_cvr.combinefeatures as cf
-from sklearn import decomposition, ensemble, model_selection, neighbors, neural_network, preprocessing, svm, linear_model, cluster
-from nhanes_cvr.BalancedKFold import BalancedKFold, RepeatedBalancedKFold
+from sklearn import ensemble, neighbors, neural_network, preprocessing, svm, linear_model, cluster
 from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score, roc_auc_score
 from nhanes_dl import download
-import nhanes_cvr.gridsearch as gs
 import nhanes_cvr.utils as utils
 import nhanes_dl.types as types
 import nhanes_cvr.selection as select
-import seaborn as sns
 
 # CONFIGURATION VARIABLES
 scoringConfig = {"precision": make_scorer(precision_score, average="binary", zero_division=0),
                  "recall": make_scorer(recall_score, average="binary", zero_division=0),
                  "f1": make_scorer(f1_score, average="binary", zero_division=0),
-                 "accuracy": make_scorer(accuracy_score),
-                 #  "roc_auc": make_scorer(roc_auc_score)
+                 "accuracy": make_scorer(accuracy_score)
                  }
 targetScore = "f1"
 maxIter = 200
@@ -30,179 +23,76 @@ correlationThreshold = 0.05
 zScoreThreshold = 2.9
 nullThreshold = 3
 
-foldingStrategies = [
-    # model_selection.KFold(n_splits=folds, shuffle=True,
-    #                       random_state=randomState),
-    model_selection.StratifiedKFold(
-        n_splits=folds, shuffle=True, random_state=randomState),
-    # BalancedKFold(n_splits=folds, shuffle=True, random_state=randomState),
-    # model_selection.RepeatedKFold(n_splits=10, n_repeats=10),
-    # model_selection.RepeatedStratifiedKFold(n_splits=10, n_repeats=10),
-    # RepeatedBalancedKFold(n_splits=10, n_repeats=10)
-]
-
-
-# Store Model in Thunks to ensure recreation of new model every GridSearch
-# models = [
-# (lambda: linear_model.LogisticRegression(random_state=randomState, max_iter=maxIter),
-#  [
-#     {
-#         "C": [.2, .4, .6, .8, 1],
-#         "penalty": ["l2", "none"],
-#         "solver": ["newton-cg", "liblinear", "sag"],
-#         "class_weight": [None, "balanced"]
-#     },
-#     {
-#         "C": [.2, .4, .6, .8, 1],
-#         "penalty": ["l1", "none"],
-#         "solver": ["liblinear", "saga"],
-#         "class_weight": [None, "balanced"]
-#     },
-#     {
-#         "C": [.2, .4, .6, .8, 1],
-#         "penalty": ["l2", "l1", "none"],
-#         "solver": ["saga"],
-#         "class_weight": [None, "balanced"],
-#         "l1_ratio": [.5]
-#     },
-#     {
-#         "C": [.2, .4, .6, .8, 1],
-#         "penalty": ["elasticnet"],
-#         "solver": ["saga"],
-#         "class_weight": [None, "balanced"],
-#         "l1_ratio": [.3, .5, .8]
-#     }
-# ]),
-
-# (lambda: linear_model.SGDClassifier(shuffle=True, random_state=randomState),
-#     {"loss": ["perceptron", "log_loss", "perceptron"], "penalty":["l1", "l2"]}),
-
-# (lambda: linear_model.RidgeClassifier(random_state=randomState), [
-#     {"solver": [
-#         "sag", "svd", "lsqr", "cholesky", "sparse_cg", "sag", "saga"]},
-#     {"solver": ["lbfgs"], "positive": [True]}
-# ]),
-
-# (lambda: ensemble.RandomForestClassifier(random_state=randomState), {
-#      "class_weight": [None, "balanced", "balanced_subsample"], #  I should understand this more
-#      "max_features": ["sqrt", "log2"],  # May be best exploring this variable
-#      "criterion": ["gini", "entropy", "log_loss"],
-#      "max_depth": [5, 10, 15]
-# }),
-
-# (lambda: neighbors.KNeighborsClassifier(),
-#  {"weights": ["uniform", "distance"],
-#   "n_neighbors": [5, 10],
-#   "leaf_size": [30, 50]
-#   }),
-
-# (lambda: neural_network.MLPClassifier(shuffle=True, max_iter=maxIter, random_state=randomState), {
-#  "activation": ["logistic", "tanh", "relu"],
-#  "solver": ["sgd"],
-#  "learning_rate":["invscaling"],
-#  "learning_rate_init":[1e-2, 1e-3]
-#  }),
-
-# (lambda: svm.LinearSVC(random_state=42), [
-#     {
-#         "loss": ["hinge"],
-#         "penalty": ['l2'],
-#         "C": [.05, 1],
-#     }, {
-#         "loss": ["squared_hinge"],
-#         "penalty": ['l2'],
-#         "C": [.05, 1],
-#     }
-# ])
-# ]
-
 models = [
     (linear_model.LogisticRegression,
      [
          {
-             'solver': ['sag'],
-             'penalty': ['l2'],
-             'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
-             'C': [1, .9, .5]
+             'model__solver': ['sag'],
+             'model__penalty': ['l2'],
+             'model__class_weight': [None, 'balanced'],
+             'model__C': [1, .9, .5]
          },
          {
-             'solver': ['saga'],
-             'penalty': ['elasticnet', 'l2', 'l1'],
-             'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
-             'random_state': [randomState],
-             'C': [1, .9, .5]
+             'model__solver': ['saga'],
+             'model__penalty': ['elasticnet', 'l2', 'l1'],
+             'model__class_weight': [None, 'balanced'],
+             'model__random_state': [randomState],
+             'model__C': [1, .9, .5]
          }
      ]
      ),
     ((ensemble.RandomForestClassifier),
      {
-        'n_estimators': [100, 50],
-        'min_samples_split': [2, 4, 6, 12],
-        'class_weight': [None, {0: .9, 1: .1}, 'balanced', 'balanced_subsample'],
-        'criterion': ['gini', 'entropy', 'log_loss'],
-        'max_features': ['sqrt', 'log2'],
-        'random_state': [randomState]
+        'model__n_estimators': [100, 50],
+        'model__min_samples_split': [2, 4, 6, 12],
+        'model__class_weight': [None, 'balanced', 'balanced_subsample'],
+        'model__criterion': ['gini', 'entropy', 'log_loss'],
+        'model__max_features': ['sqrt', 'log2'],
+        'model__random_state': [randomState]
     }),
     (neural_network.MLPClassifier, [{
-        'solver': ['adam'],
-        'activation': ['relu', 'tanh', 'logistic'],
-        'random_state': [randomState]
+        'model__solver': ['adam'],
+        'model__activation': ['relu', 'tanh', 'logistic'],
+        'model__random_state': [randomState]
     }, {
-        'solver': ['sgd'],
-        'activation': ['relu', 'tanh', 'logistic'],
-        'random_state': [randomState],
-        'learning_rate': ['adaptive', 'invscaling']
+        'model__solver': ['sgd'],
+        'model__activation': ['relu', 'tanh', 'logistic'],
+        'model__random_state': [randomState],
+        'model__learning_rate': ['adaptive', 'invscaling']
     }]),
-    # (svm.SVC, {
-    #     "C": [1, .9],
-    #     'kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
-    #     'class_weight': [None, {0: .9, 1: .1}, 'balanced'],
-    # }),
+    (svm.SVC, {
+        "model__C": [1, .9],
+        'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
+        'model__class_weight': [None, 'balanced'],
+    }),
     (neighbors.KNeighborsClassifier,
      {
-         "weights": ["uniform", "distance"],
-         "n_neighbors": [5, 10],
-         "leaf_size": [30, 50]
+         "model__weights": ["uniform", "distance"],
+         "model__n_neighbors": [5, 10],
+         "model__leaf_size": [30, 50]
      }),
 ]
 
-scalers = [
-    # None,
-    # preprocessing.MinMaxScaler(),
-    # preprocessing.Normalizer(),
-    preprocessing.StandardScaler(),
-    # preprocessing.RobustScaler()
-]
+# models = [
+#     (linear_model.LogisticRegression,
+#      {
+#          'model__C': [.5, 1],
+#          'model__solver': ['lbfgs', 'liblinear']
+#      }
+#      ),
+#     (ensemble.RandomForestClassifier,
+#      {
+#          'model__n_estimators': [100, 50],
+#          'model__criterion': ['gini', 'entropy']
+#      }
+#      )]
 
-# NOTE: Most studies I've seen don't use the earlier years of nhanes
-# Probably cause it's harder to combine with them
-# downloadConfig = {
-#     download.CodebookDownload(types.ContinuousNHANES.First,
-#                               "LAB13", "LAB13AM", "LAB10AM", "LAB18", "CDQ",
-#                               "DIQ", "BPQ", "BMX", "DEMO", "BPX"),
-#     download.CodebookDownload(types.ContinuousNHANES.Second,
-#                               "L13_B", "L13AM_B", "L10AM_B", "L10_2_B",
-#                               "CDQ_B", "DIQ_B", "BPQ_B", "BMX_B", "DEMO_B", "BPX_B"),
-#     download.CodebookDownload(types.ContinuousNHANES.Third,
-#                               "L13_C", "L13AM_C", "L10AM_C", "CDQ_C", "DIQ_C",
-#                               "BPQ_C", "BMX_C", "DEMO_C", "BPX_C"),
-#     # Everything past this point has the same codebooks
-#     download.CodebookDownload(types.ContinuousNHANES.Fourth,
-#                               "TCHOL_D", "TRIGLY_D", "HDL_D", "GLU_D", "CDQ_D",
-#                               "DIQ_D", "BPQ_D", "BMX_D", "DEMO_D", "BPX_D"),
-#     download.CodebookDownload(types.ContinuousNHANES.Fifth,
-#                               "TCHOL_E", "TRIGLY_E", "HDL_E", "GLU_E", "CDQ_E",
-#                               "DIQ_E", "BPQ_E", "BMX_E", "DEMO_E", "BPX_E"),
-#     download.CodebookDownload(types.ContinuousNHANES.Sixth,
-#                               "TCHOL_F", "TRIGLY_F", "HDL_F", "GLU_F", "CDQ_F",
-#                               "DIQ_F", "BPQ_F", "BMX_F", "DEMO_F", "BPX_F"),
-#     download.CodebookDownload(types.ContinuousNHANES.Seventh,
-#                               "TCHOL_G", "TRIGLY_G", "HDL_G", "GLU_G", "CDQ_G",
-#                               "DIQ_G", "BPQ_G", "BMX_G", "DEMO_G", "BPX_G"),
-#     download.CodebookDownload(types.ContinuousNHANES.Eighth,
-#                               "TCHOL_H", "TRIGLY_H", "HDL_H", "GLU_H", "CDQ_H",
-#                               "DIQ_H", "BPQ_H", "BMX_H", "DEMO_H", "BPX_H"),
-# }
+scalers = [
+    preprocessing.MinMaxScaler,
+    preprocessing.Normalizer,
+    preprocessing.StandardScaler,
+    preprocessing.RobustScaler
+]
 
 
 def standardYesNoProcessor(X):
@@ -314,58 +204,10 @@ combineConfigs = [
     cf.rename("MCQ010", "TOLD_HAVE_ASTHMA", postProcess=standardYesNoProcessor)
 ]
 
-notNullCombineConfig = [
-    # Demographics
-    cf.rename("RIDAGEYR", "AGE"),
-    cf.rename("RIAGENDR", "GENDER"),
-    cf.rename("RIDRETH1", "Race"),
-
-    # Lab
-    cf.rename("LBXTC", "Total_Chol", postProcess=cf.meanMissingReplacement),
-    cf.rename("LBDLDL", "LDL", postProcess=cf.meanMissingReplacement),
-    cf.rename("LBXTR", "TG", postProcess=cf.meanMissingReplacement),
-    cf.rename("LBDHDD", "HDL", postProcess=cf.meanMissingReplacement),
-
-    cf.create(["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"], "SYSTOLIC",
-              combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
-    cf.create(["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"], "DIASTOLIC",
-              combineStrategy=cf.meanCombine, postProcess=cf.meanMissingReplacement),
-
-    cf.rename("LBXGLU", "FBG", postProcess=cf.meanMissingReplacement),
-    cf.rename("LBXIN", "INSULIN", postProcess=cf.meanMissingReplacement),
-
-    cf.rename("LBXHGB", "HEMOGOBLIN", postProcess=cf.meanMissingReplacement),
-    cf.rename("LBXGH", "GLYCOHEMOGLOBIN",
-              postProcess=cf.meanMissingReplacement),
-
-    # Very few have this
-    # cf.rename("LBXAPB", "APOLIPOPROTEIN",
-    #           postProcess=cf.meanMissingReplacement),
-
-    # # Takes away like 700 samples
-    # cf.rename("URXUIO", "IODINE",
-    #           postProcess=cf.meanMissingReplacement),
-    # cf.rename("URXUCR", "CREATINE",
-    #           postProcess=cf.meanMissingReplacement),
-
-    # # Questionaire
-    cf.rename("CDQ001", "CHEST_PAIN", postProcess=standardYesNoProcessor),
-    cf.rename("CDQ010", "SHORTNESS_OF_BREATHS",
-              postProcess=standardYesNoProcessor),
-    # # # Could add more from CDQ
-    cf.rename("SMQ020", "SMOKED_AT_LEAST_100_IN_LIFE",
-              postProcess=standardYesNoProcessor),
-
-    # # Might add Sleep, Weight History,
-    cf.rename("MCQ010", "TOLD_HAVE_ASTHMA", postProcess=standardYesNoProcessor)
-]
 
 # Save CSV of combinationConfigs
 ccDF = cf.combineFeaturesToDataFrame(combineConfigs)
 ccDF.to_csv("./results/handpicked_features.csv")
-ccDF = cf.combineFeaturesToDataFrame(notNullCombineConfig)
-ccDF.to_csv("./results/handpickedNoNull_features.csv")
-keepNullConfig = cf.noPostProcessingForAll(notNullCombineConfig)
 
 # Years used for cvd in "A Data Driven Approach..."
 nhanesYears = {types.ContinuousNHANES.Fifth,
@@ -390,78 +232,16 @@ print(f"Dead Dataset: {DEAD_DATASET.shape}")
 print(f"Alive Dataset: {ALIVE_DATASET.shape}")
 DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
 
-# dataset = LINKED_DATASET  # Quickly allows running on other datasets
-
-# data processing from "A data driven approach"
 dataset = NHANES_DATASET
-above20AndNonPregnant = (dataset["RIDAGEYR"] >= 20) & (
-    dataset["RHD143"] != 1)
-dataset = dataset.loc[above20AndNonPregnant, :]
-
-
-# TODO: Expose API for this in nhanes-dl
-mortalityCols = download.getMortalityColumns()
-featuresToScale = [cf.meanMissingReplacement.__name__]
-
-
-withoutScalingFeatures = [
-    c.combinedName for c in combineConfigs if c.postProcess.__name__ not in featuresToScale]
-withoutScalingFeaturesForNoNull = [
-    c.combinedName for c in notNullCombineConfig if c.postProcess.__name__ not in featuresToScale]
 
 
 gridSearchSelections = [
-    # ("handpicked",
-    #  select.handPickedSelection(combineConfigs),
-    #  gs.createScalerConfigsIgnoreFeatures(scalers, withoutScalingFeatures)),
-
-    # ("handpickedNoNulls",
-    #  toolz.compose_left(
-    #      select.handPickedSelection(keepNullConfig),
-    #      select.removeNullSamples,
-    #  ),
-    #  gs.createScalerConfigsIgnoreFeatures(
-    #      scalers, withoutScalingFeaturesForNoNull)),
-
-    # ("handPickedNoNullsAndRemoveOutliers",
-    #  toolz.compose_left(
-    #      select.handPickedSelection(keepNullConfig),
-    #      select.removeNullSamples,
-    #      select.removeOutliers(zScoreThreshold),
-    #  ),
-    #  gs.createScalerConfigsIgnoreFeatures(
-    #      scalers, withoutScalingFeaturesForNoNull)),
-
-    # ("correlation",
-    #  toolz.compose_left(
-    #      select.correlationSelection(correlationThreshold),
-    #      select.fillNullWithMean
-    #  ),
-    #  gs.createScalerAllFeatures(scalers)),
-
-    # ("correlationNoNullsFromThreshold",
-    #  toolz.compose_left(
-    #      select.correlationSelection(correlationThreshold),
-    #      select.dropSamples(nullThreshold),
-    #      select.fillNullWithMean
-    #  ),
-    #  gs.createScalerAllFeatures(scalers)),
-    # ("correlationNoNullsFromThresholdAndRemoveOutliers",
-    #  toolz.compose_left(
-    #      select.correlationSelection(correlationThreshold),
-    #      select.dropSamples(nullThreshold),
-    #      select.fillNullWithMean,
-    #      select.removeOutliers(zScoreThreshold)
-    #  ),
-    #     gs.createScalerAllFeatures(scalers)),
-
     ("handpicked",
-     select.handPickedSelection(combineConfigs),
-     gs.createScalerConfigsIgnoreFeatures(scalers, withoutScalingFeatures)),
+     select.handPickedSelection(combineConfigs)),
 
     ("correlation", toolz.compose_left(
         select.dropColumns(.50),
         select.fillNullWithMean,
         select.correlationSelection(correlationThreshold)
-    ), gs.createScalerAllFeatures(scalers)),
+    ))
 ]

@@ -1,10 +1,12 @@
 from datetime import datetime
-from locale import normalize
 import pandas as pd
+from sklearn import ensemble, linear_model, model_selection, preprocessing
+from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
 import nhanes_cvr.gridsearch as gs
 import nhanes_cvr.utils as utils
 import seaborn as sns
-from nhanes_cvr.config import dataset, mortalityCols, gridSearchSelections, testSize, randomState, scoringConfig, models, foldingStrategies, targetScore
+from nhanes_cvr.config import dataset, gridSearchSelections, testSize, randomState, scoringConfig, models, targetScore, scalers
+import nhanes_cvr.rewrite as rw
 
 # Matplotlib/Seaborn Theming
 sns.set_theme()
@@ -15,12 +17,19 @@ normalCVRDeath = [utils.LeadingCauseOfDeath.HEART_DISEASE,
 diabetesDeath = [utils.LeadingCauseOfDeath.DIABETES_MELLITUS]
 expandedCVRDeath = normalCVRDeath + diabetesDeath
 labelMethods = [
-    ("questionnaire", utils.nhanesToQuestionnaireSet),
+    # ("questionnaire", utils.nhanesToQuestionnaireSet),
     ("cvr_death", utils.nhanesToMortalitySet),
     # ("cvr_death_within_time", utils.nhanesToMortalityWithinTimeSet(10))
     # ("diabetes_death", utils.labelCVR(diabetesDeath)),
     # ("cvr_diabetes_death", utils.labelCVR(expandedCVRDeath))
 ]
+
+
+cvModels = rw.generatePipelines(models, scalers)
+splits = 10
+fold = model_selection.StratifiedKFold(n_splits=splits)
+target = 'f1'
+testSize = .2
 
 start = datetime.now()
 for labelName, getY in labelMethods:
@@ -31,47 +40,12 @@ for labelName, getY in labelMethods:
 
     print(dataset.shape)
 
-    runInfoSeries = []
-    for name, selectF, getScalingConfigs in gridSearchSelections:
+    for name, selectF in gridSearchSelections:
         print(name)
         runSaveDir = f"{saveDir}/{name}"
         utils.makeDirectoryIfNotExists(runSaveDir)
 
         X, Y = selectF((originalX, originalY))
-        scalingConfigs = getScalingConfigs(X)
-        runResults = []
-        print(X.shape)
-        print(Y.value_counts(normalize=True))
 
-        for scaleConfig in scalingConfigs:
-            scaledX = gs.runScaling(scaleConfig, X, Y)
-            scalerName = gs.getScalerName(scaleConfig)
-            print(f"SCALING: {scalerName}")
-
-            results = gs.runAndEvaluateGridSearch(scaledX, Y, testSize,
-                                                  randomState, scoringConfig, models,
-                                                  foldingStrategies, targetScore, runSaveDir).assign(scaler=scalerName)  # type: ignore
-            runResults.append(results)
-
-        allResults = pd.concat(runResults)
-        allResults.to_csv(f"{runSaveDir}/results.csv")
-
-        # Train Plot
-        for s in gs.getTestScoreNames(scoringConfig):
-            gs.plotResultsGroupedByModel(allResults, s,  # type: ignore
-                                         f"{runSaveDir}/train_groupedModelPlots",
-                                         title=f"trainSet - {s}")
-
-        # Test Plot
-        for s in scoringConfig.keys():
-            gs.plotResultsGroupedByModel(allResults, s,  # type: ignore
-                                         f"{runSaveDir}/test_groupedModelPlots",
-                                         title=f"testSet - {s}")
-
-        totalTime = datetime.now() - start
-        info = pd.Series({"name": name, "xShape": X.shape,
-                          "yShape": Y.shape, "time": totalTime, "truePercent": Y[Y == 1].sum() / Y.shape[0]})
-        runInfoSeries.append(info)
-
-    runInfoDF = pd.DataFrame(runInfoSeries)
-    runInfoDF.to_csv(f"{saveDir}/runInfos.csv")
+        rw.trainTestProcess(cvModels, scoringConfig, targetScore,
+                            testSize, fold, X, Y, runSaveDir)
