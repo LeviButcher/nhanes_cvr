@@ -1,3 +1,0 @@
-,model,scaling,precision,recall,f1,accuracy,params
-0,LogisticRegression,MinMaxScaler,0.6367924528301887,0.3047404063205418,0.4122137404580153,0.9526095519448547,{'model__solver': 'sag'}
-0,LogisticRegression,StandardScaler,0.6108786610878661,0.3295711060948081,0.42815249266862165,0.9519940915805022,{'model__solver': 'sag'}

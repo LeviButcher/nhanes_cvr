@@ -1,51 +1,30 @@
 from datetime import datetime
-import pandas as pd
-from sklearn import ensemble, linear_model, model_selection, preprocessing
-from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_score, recall_score
-import nhanes_cvr.gridsearch as gs
+from sklearn import model_selection
 import nhanes_cvr.utils as utils
 import seaborn as sns
-from nhanes_cvr.config import dataset, gridSearchSelections, testSize, randomState, scoringConfig, models, targetScore, scalers
-import nhanes_cvr.rewrite as rw
+from nhanes_cvr.config import dataset, gridSearchSelections, testSize, scoringConfig, models, scalers, randomState
+import nhanes_cvr.mlProcess as ml
 
 # Matplotlib/Seaborn Theming
-sns.set_theme()
+sns.set_theme(style='darkgrid', palette='pastel')
 
-# Setup functions to label cause of death differently
-normalCVRDeath = [utils.LeadingCauseOfDeath.HEART_DISEASE,
-                  utils.LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE]
-diabetesDeath = [utils.LeadingCauseOfDeath.DIABETES_MELLITUS]
-expandedCVRDeath = normalCVRDeath + diabetesDeath
+
 labelMethods = [
     # ("questionnaire", utils.nhanesToQuestionnaireSet),
     ("cvr_death", utils.nhanesToMortalitySet),
-    # ("cvr_death_within_time", utils.nhanesToMortalityWithinTimeSet(10))
-    # ("diabetes_death", utils.labelCVR(diabetesDeath)),
-    # ("cvr_diabetes_death", utils.labelCVR(expandedCVRDeath))
+    # ("lab_thresh", utils.labelCVRBasedOnLabMetrics(2)),
+    # ("cardiovascular_codebook", utils.labelCVRBasedOnCardiovascularCodebook)
 ]
 
 
-cvModels = rw.generatePipelines(models, scalers)
+cvModels = ml.generatePipelines(models, scalers)
 splits = 10
-fold = model_selection.StratifiedKFold(n_splits=splits)
+fold = model_selection.StratifiedKFold(
+    n_splits=splits, shuffle=True, random_state=randomState)
 target = 'f1'
 testSize = .2
 
-start = datetime.now()
-for labelName, getY in labelMethods:
-    originalX, originalY = getY(dataset)
-    saveDir = f"results/{labelName}"
 
-    utils.makeDirectoryIfNotExists(saveDir)
-
-    print(dataset.shape)
-
-    for name, selectF in gridSearchSelections:
-        print(name)
-        runSaveDir = f"{saveDir}/{name}"
-        utils.makeDirectoryIfNotExists(runSaveDir)
-
-        X, Y = selectF((originalX, originalY))
-
-        rw.trainTestProcess(cvModels, scoringConfig, targetScore,
-                            testSize, fold, X, Y, runSaveDir)
+for nl in labelMethods:
+    ml.labelThenTrainUsingMultipleSelectors(
+        nl, dataset, gridSearchSelections, cvModels, scoringConfig, target, testSize, fold, "results")  # type: ignore

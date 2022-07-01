@@ -6,6 +6,8 @@ from nhanes_dl import download
 import nhanes_cvr.utils as utils
 import nhanes_dl.types as types
 import nhanes_cvr.selection as select
+import numpy as np
+import scipy.stats as stats
 
 # CONFIGURATION VARIABLES
 scoringConfig = {"precision": make_scorer(precision_score, average="binary", zero_division=0),
@@ -24,53 +26,55 @@ zScoreThreshold = 2.9
 nullThreshold = 3
 
 models = [
-    (linear_model.LogisticRegression,
-     [
-         {
-             'model__solver': ['sag'],
-             'model__penalty': ['l2'],
-             'model__class_weight': [None, 'balanced'],
-             'model__C': [1, .9, .5]
-         },
-         {
-             'model__solver': ['saga'],
-             'model__penalty': ['elasticnet', 'l2', 'l1'],
-             'model__class_weight': [None, 'balanced'],
-             'model__random_state': [randomState],
-             'model__C': [1, .9, .5]
-         }
-     ]
-     ),
+    # (linear_model.LogisticRegression,
+    #  [
+    #      {
+    #          'model__solver': ['sag'],
+    #          'model__penalty': ['l2'],
+    #          'model__class_weight': [None, 'balanced'],
+    #          'model__C': stats.expon(scale=100)
+    #      },
+    #      {
+    #          'model__solver': ['saga'],
+    #          'model__penalty': ['elasticnet', 'l2', 'l1'],
+    #          'model__class_weight': [None, 'balanced'],
+    #          'model__random_state': [randomState],
+    #          'model__C': stats.expon(scale=100)
+    #      }
+    #  ]
+    #  ),
     ((ensemble.RandomForestClassifier),
      {
-        'model__n_estimators': [100, 50],
-        'model__min_samples_split': [2, 4, 6, 12],
+        'model__n_estimators': np.arange(100, 500, 5),
+        'model__min_samples_split': np.arange(1, 30, 2),
+        'model__max_depth': np.arange(20, 100, 10),
+        'model__min_samples_leaf': np.arange(1, 50, 20),
         'model__class_weight': [None, 'balanced', 'balanced_subsample'],
         'model__criterion': ['gini', 'entropy', 'log_loss'],
-        'model__max_features': ['sqrt', 'log2'],
+        'model__max_features': np.arange(5, 200, 5),
         'model__random_state': [randomState]
     }),
-    (neural_network.MLPClassifier, [{
-        'model__solver': ['adam'],
-        'model__activation': ['relu', 'tanh', 'logistic'],
-        'model__random_state': [randomState]
-    }, {
-        'model__solver': ['sgd'],
-        'model__activation': ['relu', 'tanh', 'logistic'],
-        'model__random_state': [randomState],
-        'model__learning_rate': ['adaptive', 'invscaling']
-    }]),
-    (svm.SVC, {
-        "model__C": [1, .9],
-        'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
-        'model__class_weight': [None, 'balanced'],
-    }),
-    (neighbors.KNeighborsClassifier,
-     {
-         "model__weights": ["uniform", "distance"],
-         "model__n_neighbors": [5, 10],
-         "model__leaf_size": [30, 50]
-     }),
+    # (neural_network.MLPClassifier, [{
+    #     'model__solver': ['adam'],
+    #     'model__activation': ['relu', 'tanh', 'logistic'],
+    #     'model__random_state': [randomState]
+    # }, {
+    #     'model__solver': ['sgd'],
+    #     'model__activation': ['relu', 'tanh', 'logistic'],
+    #     'model__random_state': [randomState],
+    #     'model__learning_rate': ['adaptive', 'invscaling']
+    # }]),
+    # (svm.SVC, {
+    #     'model__C': stats.expon(scale=100),
+    #     'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
+    #     'model__class_weight': [None, 'balanced'],
+    # }),
+    # (neighbors.KNeighborsClassifier,
+    #  {
+    #      "model__weights": ["uniform", "distance"],
+    #      "model__n_neighbors": np.arange(1, 20, 10),
+    #      "model__leaf_size": np.arange(30, 100, 10)
+    #  }),
 ]
 
 # models = [
@@ -89,9 +93,9 @@ models = [
 
 scalers = [
     preprocessing.MinMaxScaler,
-    preprocessing.Normalizer,
+    # preprocessing.Normalizer,
     preprocessing.StandardScaler,
-    preprocessing.RobustScaler
+    # preprocessing.RobustScaler
 ]
 
 
@@ -233,15 +237,17 @@ print(f"Alive Dataset: {ALIVE_DATASET.shape}")
 DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
 
 dataset = NHANES_DATASET
+above20AndNonPregnant = (dataset["RIDAGEYR"] >= 20) & (
+    dataset["RHD143"] != 1)
+dataset = dataset.loc[above20AndNonPregnant, :]
 
 
 gridSearchSelections = [
     ("handpicked",
      select.handPickedSelection(combineConfigs)),
-
-    ("correlation", toolz.compose_left(
-        select.dropColumns(.50),
-        select.fillNullWithMean,
-        select.correlationSelection(correlationThreshold)
-    ))
+    # ("correlation", toolz.compose_left(
+    #     select.dropColumns(.50),
+    #     select.fillNullWithMean,
+    #     select.correlationSelection(correlationThreshold)
+    # ))
 ]

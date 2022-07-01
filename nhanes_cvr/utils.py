@@ -2,11 +2,14 @@ from enum import Enum
 from typing import Callable, List, Set, Tuple, TypeVar
 import numpy as np
 import pandas as pd
+from pygments import highlight
 from scipy import stats
 from nhanes_dl import download, types
 from typing import List
 import pandas as pd
 from toolz import curry
+
+from nhanes_cvr.mlProcess import XYPair
 
 
 def getClassName(x) -> str:
@@ -80,6 +83,31 @@ def nhanesToMortalityWithinTimeSet(withinYear, nhanes_dataset) -> Tuple[pd.DataF
     X = dataset.drop(columns=download.getMortalityColumns())
     Y = labelCVRDeathWithinTime(withinYear, dataset)
     return (X, Y)  # type: ignore
+
+
+def labelCVRBasedOnCardiovascularCodebook(nhanes_dataset) -> XYPair:
+    dataset = nhanes_dataset.drop(columns=download.getMortalityColumns())
+    discomfortInChest = (dataset.CDQ001 == 1)
+    shortnessOfBreath = (dataset.CDQ010 == 1)
+    Y = (discomfortInChest & shortnessOfBreath).astype(int)
+    X = dataset.drop(columns=["CDQ001", "CDQ010"])
+    return (X, Y)
+
+
+@curry
+def labelCVRBasedOnLabMetrics(threshold: int, nhanes_dataset: pd.DataFrame) -> XYPair:
+    dataset = nhanes_dataset.drop(
+        columns=download.getMortalityColumns())  # type: ignore
+    highChol = (dataset.LBXTC > 239)
+    highLDL = (dataset.LBDLDL > 130)
+    lowHDL = (dataset.LBDHDD < 40)
+    highTG = (dataset.LBXTR > 200)
+    highGlucose = (dataset.LBXGLU > 200)
+    cvRisk = pd.concat(
+        [highChol, highLDL, lowHDL, highGlucose, highTG], axis=1).astype(int).sum(axis=1)
+    Y = (cvRisk > threshold).astype(int)
+    X = dataset.drop(columns=["LBXTC", "LBDLDL", "LBDHDD", "LBXGLU", "LBXTR"])
+    return (X, Y)
 
 
 def labelViaQuestionnaire(nhanes_dataset) -> pd.Series:
