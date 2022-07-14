@@ -1,11 +1,14 @@
+import functools
 from math import ceil, sqrt
 import pandas as pd
-from sklearn import linear_model, model_selection, preprocessing, pipeline, ensemble, metrics, datasets
+from sklearn import linear_model, model_selection, preprocessing, ensemble, metrics, datasets
 from typing import Union, List, NewType, Dict, Any, Tuple, Callable
 import matplotlib.pyplot as plt
 import seaborn as sns
-
 from nhanes_cvr import utils
+from imblearn.under_sampling import RandomUnderSampler
+from imblearn import pipeline
+
 
 # Types
 CVSearch = Union[model_selection.GridSearchCV,
@@ -22,6 +25,13 @@ CVModelList = List[CVModel]
 Fold = model_selection.StratifiedKFold
 ModelConst = Callable[[], Model]
 ScalingConst = Callable[[], Scaling]
+ScalingConstList = List[ScalingConst]
+GenModelConf = Tuple[ModelConst, ModelConf]
+GenModelConfList = List[GenModelConf]
+Sampler = RandomUnderSampler
+SamplerConst = Callable[[], Sampler]
+SamplerList = List[Sampler]
+SamplerConstList = List[SamplerConst]
 XSet = pd.DataFrame
 YSet = pd.Series
 XYPair = Tuple[XSet, YSet]
@@ -29,15 +39,23 @@ XYPair = Tuple[XSet, YSet]
 Labeller = Callable[[pd.DataFrame], XYPair]
 # Function that selects features/samples to use for training
 Selector = Callable[[XYPair], XYPair]
+OutputSelector = Callable[[str], Selector]
 NamedSelector = Tuple[str, Selector]
+NamedOutputSelector = Tuple[str, OutputSelector]
 NamedSelectors = List[NamedSelector]
+NamedOutputSelectors = List[NamedOutputSelector]
 NamedLabeller = Tuple[str, Labeller]
 SelectorCVTestDF = pd.DataFrame
 
 
-def generatePipelines(models: List[Tuple[ModelConst, ModelConf]], scaling: List[ScalingConst]) -> CVModelList:
+def generatePipelines(models: GenModelConfList, scaling: ScalingConstList) -> CVModelList:
     return [(pipeline.Pipeline([('scaling', s()), ('model', m())]), c)
             for m, c in models for s in scaling]
+
+
+def generateSamplingPipelines(sampling: SamplerConstList, models: GenModelConfList, scaling: ScalingConstList) -> CVModelList:
+    return [(pipeline.Pipeline([('scaling', s()), ('sampling', sm()),  ('model', m())]), c)
+            for m, c in models for s in scaling for sm in sampling]
 
 
 def getClassName(x):
@@ -114,12 +132,15 @@ def plotValCurveForModels(df: CVTrainDF, foldCount, savePath):
     g = sns.relplot(data=data, row='model', col='scaling', hue='type',
                     x='idx', y='value', kind='line')
     g.set(xlabel='fold', ylabel='accuracy')
+    g.set_titles(row_template="{row_name}", col_template="{col_name}")
+    g.fig.tight_layout()
     plt.savefig(savePath)
     plt.close()
 
 
 def plotTestResults(results: CVTestDF, scoring, title, savePath):
-    g = sns.PairGrid(results, y_vars=scoring, x_vars=['model'], hue="scaling")
+    g = sns.PairGrid(results, y_vars=['modelAppr'],
+                     x_vars=scoring, hue="scaling")
     g.map(sns.stripplot)
     g.add_legend()
 
@@ -134,8 +155,8 @@ def onlyUpperCase(xs: str) -> str:
 
 
 def getModelScalerNames(model: CVSearch) -> Tuple[str, str]:
-    m = onlyUpperCase(getClassName(model.estimator['model']))
-    s = onlyUpperCase(getClassName(model.estimator['scaling']))
+    m = getClassName(model.estimator['model'])
+    s = getClassName(model.estimator['scaling'])
     return (m, s)
 
 
@@ -169,7 +190,8 @@ def plotConfusionMatrixForModels(models: List[CVSearch], X, Y, title, savePath):
 
 
 def plotNewConfusionMatrix(results: CVTestDF, title: str, savePath: str):
-    g = sns.FacetGrid(results, row="modelAppr", col="scalingAppr")
+    g = sns.FacetGrid(results, row="modelAppr",
+                      col="scalingAppr")
 
     # hackish way of getting heatmap drawn
     def draw_heatmap(*args, **kwargs):
@@ -177,9 +199,10 @@ def plotNewConfusionMatrix(results: CVTestDF, title: str, savePath: str):
         sns.heatmap(data.cm[0], **kwargs)
 
     g.map_dataframe(draw_heatmap, data="cm",
-                    annot=True, square=True, cbar=False, cmap="Blues")
+                    annot=True, fmt="d", square=True, cbar=False, cmap="Blues")
     g.fig.subplots_adjust(top=0.9)  # adjust the Figure in rp
     g.fig.suptitle(title)
+    g.set_titles(row_template="{row_name}", col_template="{col_name}")
     g.fig.tight_layout()
 
     plt.savefig(savePath)
@@ -224,7 +247,7 @@ def evaluateBestModel(model: CVSearch, scoring: Scoring, X, Y) -> CVTestDF:
     (mAppr, sAppr) = getModelScalerNamesAppr(model)
     bestParams = model.best_params_
     predictedY = model.predict(X)
-    cm = metrics.confusion_matrix(Y, predictedY, normalize='true')
+    cm = metrics.confusion_matrix(Y, predictedY)
     record = [modelName, scalingName, mAppr, sAppr, *scores, bestParams, cm]
     cols = ['model', 'scaling', 'modelAppr',
             'scalingAppr', *scoreNames, 'params', 'cm']
@@ -237,30 +260,33 @@ def evaluateBestModels(models: List[CVSearch], scoring: Scoring, X, Y) -> CVTest
     return CVTestDF(res)
 
 
-def trainTestProcess(cvModels: CVModelList, scoring: Scoring, target: str, testSize: float, cv: Fold, X, Y, saveDir: str) -> CVTestDF:
+def trainTestProcess(cvModels: CVModelList, scoring: Scoring, target: str, cv: Fold, trainX, trainY, testX, testY, saveDir: str) -> CVTestDF:
     utils.makeDirectoryIfNotExists(saveDir)
     scoringNames = scoring.keys()
     cvTrainScores = [f"mean_train_{s}" for s in scoringNames]
     cvTestScores = [f"mean_test_{s}" for s in scoringNames]
-    trainX, testX, trainY, testY = model_selection.train_test_split(
-        X, Y, test_size=testSize, random_state=42, stratify=Y)
+    saveDir = f"{saveDir}/"
+    features = trainX.columns
 
     trainedModels = [randomSearchCV(m, c, scoring, target, cv, trainX, trainY)
                      for m, c in cvModels]
+
     trainResults = buildDataFrameOfResults(trainedModels)
 
     trainResults.to_csv(f"{saveDir}train_results.csv")
 
     plotValCurveForModels(trainResults, 10, f"{saveDir}train_val_curves")
+    randomForestFeatureImportance(
+        trainedModels, features, f"{saveDir}random_forest_importance.csv")
     # Training Plots
     plotPrecisionRecallForModels(
         trainedModels, trainX, trainY, f"{saveDir}train_precision_recall")
     plotROCCurveForModels(trainedModels, trainX, trainY,
                           f"{saveDir}train_roc_curve")
-    pairPlotsForModelConfigs(trainResults, cvTrainScores,
-                             f"{saveDir}train_train_fold_scores")
-    pairPlotsForModelConfigs(trainResults, cvTestScores,
-                             f"{saveDir}train_test_fold_scores")
+    # pairPlotsForModelConfigs(trainResults, cvTrainScores,
+    #                          f"{saveDir}train_train_fold_scores")
+    # pairPlotsForModelConfigs(trainResults, cvTestScores,
+    #                          f"{saveDir}train_test_fold_scores")
 
     testResults = evaluateBestModels(trainedModels, scoring, testX, testY)
 
@@ -278,40 +304,54 @@ def trainTestProcess(cvModels: CVModelList, scoring: Scoring, target: str, testS
     return testResults
 
 
-def test():
-    X, Y = datasets.make_classification()
+# def test():
+#     X, Y = datasets.make_classification()
 
-    models = [
-        (linear_model.LogisticRegression,
-         {
-             'model__C': [.5, 1],
-             'model__solver': ['lbfgs', 'liblinear']
-         }
-         ),
-        (ensemble.RandomForestClassifier,
-         {
-             'model__n_estimators': [100, 50],
-             'model__criterion': ['gini', 'entropy']
-         }
-         )]
+#     models = [
+#         (linear_model.LogisticRegression,
+#          {
+#              'model__C': [.5, 1],
+#              'model__solver': ['lbfgs', 'liblinear']
+#          }
+#          ),
+#         (ensemble.RandomForestClassifier,
+#          {
+#              'model__n_estimators': [100, 50],
+#              'model__criterion': ['gini', 'entropy']
+#          }
+#          )]
 
-    scalers = [
-        preprocessing.MinMaxScaler,
-        preprocessing.Normalizer,
-        preprocessing.StandardScaler,
-        preprocessing.RobustScaler
-    ]
+#     scalers = [
+#         preprocessing.MinMaxScaler,
+#         preprocessing.Normalizer,
+#         preprocessing.StandardScaler,
+#         preprocessing.RobustScaler
+#     ]
 
-    scoringConfig = {"precision": metrics.make_scorer(metrics.precision_score, average="binary", zero_division=0),
-                     "recall": metrics.make_scorer(metrics.recall_score, average="binary", zero_division=0),
-                     "f1": metrics.make_scorer(metrics.f1_score, average="binary", zero_division=0),
-                     "accuracy": metrics.make_scorer(metrics.accuracy_score)
-                     }
+#     scoringConfig = {"precision": metrics.make_scorer(metrics.precision_score, average="binary", zero_division=0),
+#                      "recall": metrics.make_scorer(metrics.recall_score, average="binary", zero_division=0),
+#                      "f1": metrics.make_scorer(metrics.f1_score, average="binary", zero_division=0),
+#                      "accuracy": metrics.make_scorer(metrics.accuracy_score)
+#                      }
 
-    pipes = generatePipelines(models, scalers)
-    fold = model_selection.StratifiedKFold(n_splits=10)
-    trainTestProcess(pipes, scoringConfig, "f1",
-                     0.2, fold, X, Y, "../results")
+#     pipes = generatePipelines(models, scalers)
+#     fold = model_selection.StratifiedKFold(n_splits=10)
+#     trainTestProcess(pipes, scoringConfig, "f1",
+#                      0.2, fold, X, Y, "../results")
+
+
+def randomForestFeatureImportance(models: List[CVSearch], features: List[str], savePath: str):
+    rfModels = [m for m in models if getModelScalerNames(m)[
+        0] == "RandomForestClassifier"]
+
+    results = []
+    for rf in rfModels:
+        imp = rf.best_estimator_['model'].feature_importances_  # type: ignore
+        data = pd.DataFrame([imp], columns=features).assign(
+            model='RandomForestClassifier').assign(scaling=rf.best_estimator_['scaling'])  # type: ignore
+        results.append(data)
+    results = pd.concat(results)
+    results.to_csv(f"{savePath}")
 
 
 def plotFeatureRelationships(X, Y, savePath):
@@ -321,23 +361,73 @@ def plotFeatureRelationships(X, Y, savePath):
     plt.close()
 
 
-def trainTestWithSelector(namedSelector: NamedSelector, xy: XYPair, models: CVModelList, scoring: Scoring, target: str, testSize: float, cv: Fold, saveDir: str) -> SelectorCVTestDF:
+def trainTestWithSelector(namedSelector: NamedOutputSelector, xy: XYPair, models: CVModelList, scoring: Scoring, target: str, testSize: float, cv: Fold, saveDir: str) -> SelectorCVTestDF:
     name, selector = namedSelector
-    (X, Y) = selector(xy)
+    saveDir = f"{saveDir}/{name}"
     utils.makeDirectoryIfNotExists(saveDir)
+    (X, Y) = selector(f"{saveDir}/")(xy)
+    trainX, testX, trainY, testY = model_selection.train_test_split(
+        X, Y, test_size=testSize, random_state=42, stratify=Y)
     testResult = trainTestProcess(
-        models, scoring, target, testSize, cv, X, Y, f"{saveDir}/{name}/")
+        models, scoring, target, cv, trainX, trainY, testX, testY, saveDir)
     return testResult.assign(selector=name)
 
 
-def labelThenTrainUsingMultipleSelectors(namedLabeller: NamedLabeller, data: pd.DataFrame, selectors: NamedSelectors, models: CVModelList, scoring: Scoring, target: str, testSize: float, cv: Fold, saveDir: str):
+def labelThenTrainUsingMultipleSelectors(namedLabeller: NamedLabeller, data: pd.DataFrame, selectors: NamedOutputSelectors, models: CVModelList, scoring: Scoring, target: str, testSize: float, cv: Fold, saveDir: str):
     name, labeller = namedLabeller
     xy = labeller(data)
-    print(xy[0].shape)
-    print(xy[1].value_counts(normalize=True))
+    utils.makeDirectoryIfNotExists(saveDir)
+    saveDir = f"{saveDir}/{name}"
     utils.makeDirectoryIfNotExists(saveDir)
 
+    print(xy[0].shape)
+    print(xy[1].value_counts(normalize=True))
+
     results = [trainTestWithSelector(ns, xy, models, scoring,
-                                     target, testSize, cv, f"{saveDir}/{name}/")
+                                     target, testSize, cv, saveDir)
                for ns in selectors]
     results = pd.concat(results).assign(labeller=name)
+
+
+def train_test_idx(testSize: float, dataset: pd.DataFrame) -> Tuple[pd.Series, pd.Series]:
+    train, test = model_selection.train_test_split(
+        dataset.index, test_size=testSize, random_state=42)
+    return (train, test)
+
+
+def trainModel(X, Y, model: Model):
+    scores = model_selection.cross_validate(
+        model, X, Y, cv=10, n_jobs=-1, scoring='f1')
+    model = model.fit(X, Y)
+    return model
+
+
+def concatString(xs: List[str]) -> str:
+    return functools.reduce(lambda acc, curr: acc + curr, xs, "")
+
+
+def mortalityAnalysis(dataset: pd.DataFrame, selector: Selector, labellers: List[NamedLabeller], testSize: float) -> None:
+    dataset = dataset.reset_index(drop=True)
+    trainIdx, testIdx = train_test_idx(testSize, dataset)
+    deadViaCV = utils.labelCVRViaCVRDeath(dataset).loc[testIdx]
+    # Add in Mortality Labels then make bar chart
+    predictions = []
+    for n, l in labellers:
+        xy = l(dataset)
+        (X, Y) = selector(xy)
+        trainX, trainY = X.loc[trainIdx], Y.loc[trainIdx]
+        testX, testY = X.loc[testIdx], Y.loc[testIdx]
+        trainedModel = trainModel(
+            trainX, trainY, ensemble.RandomForestClassifier())
+        predictedY = pd.Series(trainedModel.predict(testX))
+        predictions.append(predictedY)
+
+    predDF = pd.concat(predictions, axis=1).astype(str)
+    encodedPred = predDF.apply(concatString, axis=1)
+    print(encodedPred)
+    results = pd.concat([encodedPred, deadViaCV], axis=1)
+    results.columns = ["encoded", "deadViaCV"]
+
+    sns.histplot(data=results, x='encoded',
+                 hue='deadViaCV', stat="probability")
+    plt.show()

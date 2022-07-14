@@ -39,6 +39,7 @@ class LeadingCauseOfDeath(Enum):
     INFLUENZA_PNEUMONIA = 8
     NEPHRITIS_NEPHROTICSYNDROME_NEPHROSIS = 9
     ALL_OTHER_CAUSES = 10
+    NOT_DEAD = 11
 
 
 GETY = Callable[[pd.DataFrame], int]
@@ -56,7 +57,10 @@ def exists(xs: List[T], x: T) -> bool:
     return any([x == y for y in xs])
 
 
-def toCauseOfDeath(x): return LeadingCauseOfDeath(int(x))
+def toCauseOfDeath(x):
+    if np.isnan(x) or x == None:
+        return LeadingCauseOfDeath.NOT_DEAD
+    return LeadingCauseOfDeath(int(x))
 
 
 def nhanesToQuestionnaireSet(nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
@@ -76,6 +80,21 @@ def nhanesToMortalitySet(nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
     return (X, Y)  # type: ignore
 
 
+def labelCVrBasedOnNHANESMortalityAndExtraFactors(nhanes_dataset) -> XYPair:
+    dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
+    dataset = dataset.loc[dataset.MORTSTAT == 1, :]
+    X = dataset.drop(columns=download.getMortalityColumns())
+    mortStat = dataset.UCOD_LEADING.apply(toCauseOfDeath)
+    cvrDeath = (mortStat == LeadingCauseOfDeath.HEART_DISEASE) \
+        | (mortStat == LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE) \
+        | (mortStat == LeadingCauseOfDeath.DIABETES_MELLITUS)
+    diabetesContrib = dataset.DIABETES == 1
+    hypertenContrib = dataset.HYPERTEN == 1
+    Y = cvrDeath | diabetesContrib | hypertenContrib
+
+    return (X, Y)
+
+
 @curry
 def nhanesToMortalityWithinTimeSet(withinYear, nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
     dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
@@ -88,9 +107,16 @@ def nhanesToMortalityWithinTimeSet(withinYear, nhanes_dataset) -> Tuple[pd.DataF
 def labelCVRBasedOnCardiovascularCodebook(nhanes_dataset) -> XYPair:
     dataset = nhanes_dataset.drop(columns=download.getMortalityColumns())
     discomfortInChest = (dataset.CDQ001 == 1)
-    shortnessOfBreath = (dataset.CDQ010 == 1)
-    Y = (discomfortInChest & shortnessOfBreath).astype(int)
-    X = dataset.drop(columns=["CDQ001", "CDQ010"])
+    notReliefByStanding = (dataset.CDQ005 == 2)
+    painInLeftArm = (dataset.CDQ009G == 7)
+    severePainInChest = (dataset.CDQ009H == 9)
+    Y = (discomfortInChest | notReliefByStanding |
+         painInLeftArm | severePainInChest).astype(int)
+    toDrop = ["CDQ001", "CDQ002", "CDQ003",
+              "CDQ004", "CDQ005", "CDQ006", "CDQ009A",
+              "CDQ009B", "CDQ009C", "CDQ009D", "CDQ009E", "CDQ009F",
+              "CDQ009G", "CDQ009H", "CDQ008", "CDQ010"]
+    X = dataset.drop(columns=toDrop)
     return (X, Y)
 
 
@@ -106,7 +132,15 @@ def labelCVRBasedOnLabMetrics(threshold: int, nhanes_dataset: pd.DataFrame) -> X
     cvRisk = pd.concat(
         [highChol, highLDL, lowHDL, highGlucose, highTG], axis=1).astype(int).sum(axis=1)
     Y = (cvRisk > threshold).astype(int)
-    X = dataset.drop(columns=["LBXTC", "LBDLDL", "LBDHDD", "LBXGLU", "LBXTR"])
+    toDrop = ["LBXTC", "LBDTCSI",
+              "LBDLDL", "LBDLDLSI",
+              "LBDHDD", "LBDHDDSI",
+              "LBXGLU", "LBDGLUSI",
+              "LBXTR", "LBDTRSI",
+              "LBXSCH", "LBDSCHSI",
+              "LBXSGL", "LBDSGLSI",
+              "LBXSTR", "LBDSTRSI"]
+    X = dataset.drop(columns=toDrop)
     return (X, Y)
 
 
@@ -131,6 +165,13 @@ def labelCVRDeathWithinTime(withinYear: int, dataset: pd.DataFrame) -> pd.Series
     cvdDeath = (dataset.UCOD_LEADING == 1) | (dataset.UCOD_LEADING == 5)
     diedWithinYear = (dataset.PERMTH_INT / 12) <= withinYear
     return (cvdDeath & diedWithinYear).astype(int)
+
+
+def labelCVRViaCVRDeath(dataset) -> pd.Series:
+    normalCVRDeath = [LeadingCauseOfDeath.HEART_DISEASE,
+                      LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE]
+    Y = labelCVR(normalCVRDeath, dataset)  # type: ignore
+    return Y  # type: ignore
 
 
 @curry

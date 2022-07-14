@@ -17,11 +17,14 @@ Selection = Callable[[pd.DataFrame, pd.Series], XYPair]
 
 # NOTE: Should nulls be dropped before or after correlation
 @curry
-def correlationSelection(threshold, data: XYPair) -> XYPair:
+def correlationSelection(saveDir, threshold, data: XYPair) -> XYPair:
     X, Y = data
     cor = X.corrwith(Y).abs()
     relevant_features = cor[cor > threshold]
     X = X.loc[:, relevant_features.index.values]  # type: ignore
+
+    cor.to_csv(f"{saveDir}correlation.csv")
+    cor.describe().to_csv(f"{saveDir}correlation_stats.csv")
 
     return (X, Y)
 
