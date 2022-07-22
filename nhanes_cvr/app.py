@@ -1,59 +1,81 @@
 from datetime import datetime
 from matplotlib import pyplot as plt
 import numpy as np
-from sklearn import model_selection
+import pandas as pd
+from sklearn import feature_selection, linear_model, metrics, model_selection, preprocessing, impute
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
 import nhanes_cvr.utils as utils
 import seaborn as sns
-from nhanes_cvr.config import dataset, gridSearchSelections, testSize, scoringConfig, models, scalers, randomState
+from nhanes_cvr.config import dataset, testSize, scoringConfig, models, scalers, randomState
 import nhanes_cvr.mlProcess as ml
-from imblearn import under_sampling, combine
+from imblearn import under_sampling, combine, pipeline
+from nhanes_cvr.transformers import CorrelationSelection
 
 # Matplotlib/Seaborn Theming
 sns.set_theme(style='darkgrid', palette='pastel')
 
+dataset.dtypes.to_csv("results/feature_types.csv")
 
 labelMethods = [
     ("questionnaire", utils.nhanesToQuestionnaireSet),
     ("lab_thresh", utils.labelCVRBasedOnLabMetrics(2)),
     ("cardiovascular_codebook", utils.labelCVRBasedOnCardiovascularCodebook),
-    ("cvr_death", utils.nhanesToMortalitySet),
+    # ("cvr_death", utils.nhanesToMortalitySet),
     # ("cvr_death_extra", utils.labelCVrBasedOnNHANESMortalityAndExtraFactors)
 ]
 
-samplers = [
-    lambda: combine.SMOTEENN(random_state=randomState)
-]
 
-cvModels = ml.generateSamplingPipelines(
-    samplers, models, scalers)  # type: ignore
 splits = 10
 fold = model_selection.StratifiedKFold(
     n_splits=splits, shuffle=True, random_state=randomState)
 target = 'f1'
 testSize = .2
 
+replacements = [
+    lambda: impute.SimpleImputer(strategy='most_frequent')
+]
 
-# TODO Current Issue - Need to drop columns in the codebooks used for classification to make
-# sure any info that could easily help identify Y isn't given
-# For Lab classification mmol measurements need to be dropped.
+selections = [
+    # lambda: feature_selection.SelectPercentile()
+    lambda: CorrelationSelection(threshold=0.01)
+]
 
-# Question
-# How should the dataset be split into train/test???
+keep = (dataset.dtypes == 'float64')
+dataset = dataset.loc[:, keep]
 
-# cvModels = ml.generatePipelines(models, scalers)  # type: ignore
+# No Sampling
 
-# # for nl in labelMethods:
-# #     ml.labelThenTrainUsingMultipleSelectors(
-# #         nl, dataset, gridSearchSelections, cvModels, scoringConfig, target, testSize, fold, "results/no_sampling")
+# cvModels = ml.generatePipelines(
+#     models, scalers, replacements, selections)  # type: ignore
+
+# for nl in labelMethods:
+#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+#                           testSize, fold, dataset, "results/no_sampling")
+
+# SMOTETOMEK
+
+# cvModels = ml.generatePipelinesWithSampling(
+#     models, scalers, replacements, [lambda: combine.SMOTETomek()], selections)  # type: ignore
+
+# for nl in labelMethods:
+#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+#                           testSize, fold, dataset, "results/smotetomek")
+
+# SMOTEENN
+
+# cvModels = ml.generatePipelinesWithSampling(
+#     models, scalers, replacements, [lambda: combine.SMOTEENN()], selections)  # type: ignore
+
+# for nl in labelMethods:
+#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+#                           testSize, fold, dataset, "results/smoteenn")
 
 
-cvModels = ml.generateSamplingPipelines(
-    samplers, models, scalers)  # type: ignore
+cvModels = ml.generatePipelinesWithSampling(
+    models, scalers, replacements, [lambda: combine.SMOTEENN()], [lambda: feature_selection.RFE(  # type: ignore
+        estimator=KNeighborsClassifier(), step=5)])
 
 for nl in labelMethods:
-    ml.labelThenTrainUsingMultipleSelectors(
-        nl, dataset, gridSearchSelections, cvModels, scoringConfig, target, testSize, fold, "results/sampling")  # type: ignore
-
-# ml.mortalityAnalysis(
-#     dataset, gridSearchSelections[0][1], labelMethods, testSize)
+    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                          testSize, fold, dataset, "results/best")

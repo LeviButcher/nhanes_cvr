@@ -1,0 +1,5 @@
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
+0,LogisticRegression,MinMaxScaler,CorrelationSelection,SimpleImputer,SMOTETomek,LR,MMS,CS,SI,SMOTET,0.047619047619047616,0.5585585585585585,0.08775654635527247,0.7234499034541944,{},"[[3310 1240]
+ [  49   62]]"
+0,LogisticRegression,StandardScaler,CorrelationSelection,SimpleImputer,SMOTETomek,LR,SS,CS,SI,SMOTET,0.04746835443037975,0.5405405405405406,0.08727272727272728,0.7307444754344561,{},"[[3346 1204]
+ [  51   60]]"

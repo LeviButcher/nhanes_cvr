@@ -5,7 +5,6 @@ from sklearn.metrics import accuracy_score, f1_score, make_scorer, precision_sco
 from nhanes_dl import download
 import nhanes_cvr.utils as utils
 import nhanes_dl.types as types
-import nhanes_cvr.selection as select
 import numpy as np
 import scipy.stats as stats
 
@@ -17,7 +16,7 @@ scoringConfig = {"precision": make_scorer(precision_score, average="binary", zer
                  }
 targetScore = "f1"
 maxIter = 200
-randomState = 42
+randomState = np.random.RandomState(0)
 folds = 10
 foldRepeats = 10
 testSize = .20
@@ -43,41 +42,41 @@ models = [
      #      }
      #  ]
      ),
-    ((ensemble.RandomForestClassifier),
-     {
-        # 'model__n_estimators': np.arange(100, 500, 5),
-        # 'model__min_samples_split': np.arange(1, 30, 2),
-        # 'model__max_depth': np.arange(20, 100, 10),
-        # 'model__min_samples_leaf': np.arange(1, 50, 20),
-        # 'model__class_weight': [None, 'balanced', 'balanced_subsample'],
-        # 'model__criterion': ['gini', 'entropy', 'log_loss'],
-        # 'model__max_features': np.arange(5, 200, 5),
-        'model__random_state': [randomState]
-    }),
-    (neural_network.MLPClassifier, {}
-     #  [{
-     #      'model__solver': ['adam'],
-     #      'model__activation': ['relu', 'tanh', 'logistic'],
-     #      'model__random_state': [randomState]
-     #  }, {
-     #      # 'model__solver': ['sgd'],
-     #      # 'model__activation': ['relu', 'tanh', 'logistic'],
-     #      'model__random_state': [randomState],
-     #      # 'model__learning_rate': ['adaptive', 'invscaling']
-     #  }]
-     ),
-    (svm.SVC, {
-        # 'model__C': stats.expon(scale=100),
-        # 'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
-        # 'model__class_weight': [None, 'balanced'],
-    }),
-    (neighbors.KNeighborsClassifier, {}
-     #  {
-     #      "model__weights": ["uniform", "distance"],
-     #      "model__n_neighbors": np.arange(1, 20, 10),
-     #      "model__leaf_size": np.arange(30, 100, 10)
-     #  }
-     ),
+    # ((ensemble.RandomForestClassifier),
+    #  {
+    #     # 'model__n_estimators': np.arange(100, 500, 5),
+    #     # 'model__min_samples_split': np.arange(1, 30, 2),
+    #     # 'model__max_depth': np.arange(20, 100, 10),
+    #     # 'model__min_samples_leaf': np.arange(1, 50, 20),
+    #     # 'model__class_weight': [None, 'balanced', 'balanced_subsample'],
+    #     # 'model__criterion': ['gini', 'entropy', 'log_loss'],
+    #     # 'model__max_features': np.arange(5, 200, 5),
+    #     'model__random_state': [randomState]
+    # }),
+    # (neural_network.MLPClassifier, {}
+    #  #  [{
+    #  #      'model__solver': ['adam'],
+    #  #      'model__activation': ['relu', 'tanh', 'logistic'],
+    #  #      'model__random_state': [randomState]
+    #  #  }, {
+    #  #      # 'model__solver': ['sgd'],
+    #  #      # 'model__activation': ['relu', 'tanh', 'logistic'],
+    #  #      'model__random_state': [randomState],
+    #  #      # 'model__learning_rate': ['adaptive', 'invscaling']
+    #  #  }]
+    #  ),
+    # (svm.SVC, {
+    #     # 'model__C': stats.expon(scale=100),
+    #     # 'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
+    #     # 'model__class_weight': [None, 'balanced'],
+    # }),
+    # (neighbors.KNeighborsClassifier, {}
+    #  #  {
+    #  #      "model__weights": ["uniform", "distance"],
+    #  #      "model__n_neighbors": np.arange(1, 20, 10),
+    #  #      "model__leaf_size": np.arange(30, 100, 10)
+    #  #  }
+    #  ),
 ]
 
 # models = [
@@ -247,14 +246,3 @@ dataset = dataset.reset_index(drop=True).drop(columns='SEQN')
 dataset.describe().to_csv('./results/main_dataset_info.csv')
 
 print(f"Main Dataset: {dataset.shape}")
-
-
-gridSearchSelections = [
-    # ("handpicked",
-    #  select.handPickedSelection(combineConfigs)),
-    ("correlation", lambda saveDir: toolz.compose_left(
-        select.dropColumns(.50),
-        select.fillNullWithMean,
-        select.correlationSelection(saveDir, correlationThreshold)
-    ))
-]
