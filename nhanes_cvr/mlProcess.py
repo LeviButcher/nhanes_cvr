@@ -30,13 +30,10 @@ Sampler = RandomUnderSampler
 SamplerConst = Callable[[], Sampler]
 SamplerList = List[Sampler]
 SamplerConstList = List[SamplerConst]
-XSet = pd.DataFrame
-YSet = pd.Series
-XYPair = Tuple[XSet, YSet]
 # Function that Labels Dataset
-Labeller = Callable[[pd.DataFrame], XYPair]
+Labeller = Callable[[pd.DataFrame], utils.XYPair]
 # Function that selects features/samples to use for training
-Selector = Callable[[XYPair], XYPair]
+Selector = Callable[[utils.XYPair], utils.XYPair]
 OutputSelector = Callable[[str], Selector]
 NamedSelector = Tuple[str, Selector]
 NamedOutputSelector = Tuple[str, OutputSelector]

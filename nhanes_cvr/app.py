@@ -2,7 +2,7 @@ from datetime import datetime
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn import feature_selection, linear_model, metrics, model_selection, preprocessing, impute
+from sklearn import feature_selection, linear_model, metrics, model_selection, preprocessing, impute, datasets
 from sklearn.decomposition import PCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -11,7 +11,7 @@ import seaborn as sns
 from nhanes_cvr.config import dataset, testSize, scoringConfig, models, scalers, randomState
 import nhanes_cvr.mlProcess as ml
 from imblearn import under_sampling, combine, pipeline
-from nhanes_cvr.transformers import CorrelationSelection, DropTransformer
+from nhanes_cvr.transformers import CorrelationSelection, DropTransformer, KMeansUnderSampling
 
 # Matplotlib/Seaborn Theming
 sns.set_theme(style='darkgrid', palette='pastel')
@@ -20,8 +20,8 @@ dataset.dtypes.to_csv("results/feature_types.csv")
 
 labelMethods = [
     ("questionnaire", utils.nhanesToQuestionnaireSet),
-    ("lab_thresh", utils.labelCVRBasedOnLabMetrics(2)),
-    ("cardiovascular_codebook", utils.labelCVRBasedOnCardiovascularCodebook),
+    # ("lab_thresh", utils.labelCVRBasedOnLabMetrics(2)),
+    # ("cardiovascular_codebook", utils.labelCVRBasedOnCardiovascularCodebook),
     # ("cvr_death", utils.nhanesToMortalitySet),
     # ("cvr_death_extra", utils.labelCVrBasedOnNHANESMortalityAndExtraFactors)
 ]
@@ -57,7 +57,7 @@ for n, f in labelMethods:
     plt.savefig(f"results/{n}_pca.png")
 
 
-# No Sampling
+# print("No Sampling")
 
 # cvModels = ml.generatePipelines(
 #     models, scalers, replacements, selections)  # type: ignore
@@ -66,7 +66,9 @@ for n, f in labelMethods:
 #     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
 #                           testSize, fold, dataset, "results/no_sampling")
 
-# SMOTETOMEK
+# -------
+
+# print("SMOTETOMEK")
 
 # cvModels = ml.generatePipelinesWithSampling(
 #     models, scalers, replacements, [lambda: combine.SMOTETomek()], selections)  # type: ignore
@@ -75,7 +77,9 @@ for n, f in labelMethods:
 #     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
 #                           testSize, fold, dataset, "results/smotetomek")
 
-# SMOTEENN
+# -------
+
+# print("SMOTEENN")
 
 # cvModels = ml.generatePipelinesWithSampling(
 #     models, scalers, replacements, [lambda: combine.SMOTEENN()], selections)  # type: ignore
@@ -84,10 +88,21 @@ for n, f in labelMethods:
 #     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
 #                           testSize, fold, dataset, "results/smoteenn")
 
-cvModels = ml.generatePipelinesWithSampling(
-    models, scalers, replacements, [lambda: combine.SMOTEENN()], [lambda: feature_selection.RFE(  # type: ignore
-        estimator=RandomForestClassifier(), step=.3)])
+# -------
 
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/best")
+print("KMEANS UNDERSAMPLING")
+
+cvModels = ml.generatePipelinesWithSampling(
+    models, scalers, replacements, [lambda: KMeansUnderSampling()], selections)
+
+# for nl in labelMethods:
+#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+#                           testSize, fold, dataset, "results/kmeans_undersampling")
+
+X, y = datasets.load_breast_cancer(return_X_y=True)
+
+(pipeline, _) = cvModels[0]
+
+predicted = pipeline.fit_transform(X, y)
+
+print(predicted)

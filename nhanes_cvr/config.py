@@ -6,7 +6,6 @@ from nhanes_dl import download
 import nhanes_cvr.utils as utils
 import nhanes_dl.types as types
 import numpy as np
-import scipy.stats as stats
 
 # CONFIGURATION VARIABLES
 scoringConfig = {"precision": make_scorer(precision_score, average="binary", zero_division=0),
@@ -221,6 +220,9 @@ nhanesYears = {types.ContinuousNHANES.Fifth,
                types.ContinuousNHANES.Seventh,
                types.ContinuousNHANES.Eighth}
 # nhanesYears = types.allContinuousNHANES()
+# Sixth - https://wwwn.cdc.gov/Nchs/Nhanes/2009-2010/UCOSMO_F.XPT
+
+# Fails here?? - https://wwwn.cdc.gov/Nchs/Nhanes/20011-2012/PAXMIN_G
 
 # Download NHANES
 updateCache = False

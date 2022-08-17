@@ -2,14 +2,15 @@ from enum import Enum
 from typing import Callable, List, Set, Tuple, TypeVar
 import numpy as np
 import pandas as pd
-from pygments import highlight
 from scipy import stats
 from nhanes_dl import download, types
 from typing import List
 import pandas as pd
 from toolz import curry
 
-from nhanes_cvr.mlProcess import XYPair
+XSet = pd.DataFrame
+YSet = pd.Series
+XYPair = Tuple[XSet, YSet]
 
 
 def getClassName(x) -> str:
