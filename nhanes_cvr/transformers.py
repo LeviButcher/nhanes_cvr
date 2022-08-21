@@ -1,11 +1,26 @@
 from functools import reduce
 from typing import List, Tuple
+from xmlrpc.client import Boolean
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn import datasets, cluster, metrics
-
+from sklearn.feature_selection import SelectorMixin
+from sklearn import datasets, cluster, metrics, linear_model, ensemble
+from sklearn.utils import shuffle
+from imblearn import pipeline
 from nhanes_cvr.utils import XYPair
-from imblearn.base import BaseSampler
+from imblearn.under_sampling.base import BaseUnderSampler
+
+
+def transform_to_dataframe(X):
+    if (not isinstance(X, pd.DataFrame)):
+        return pd.DataFrame(X)
+    return X
+
+
+def transform_to_series(Y):
+    if (not isinstance(Y, pd.Series)):
+        return pd.Series(Y)
+    return Y
 
 
 class DropTransformer(BaseEstimator, TransformerMixin):
@@ -22,12 +37,7 @@ class DropTransformer(BaseEstimator, TransformerMixin):
         super().__init__()
 
     def fit(self, X: pd.DataFrame, y=None):
-        if (not X is pd.DataFrame):
-            X = pd.DataFrame(X)
-
-        if (not y is pd.Series):
-            y = pd.Series(y)
-
+        X = transform_to_dataframe(X)
         counts = X.count(axis=0)
         total = X.shape[0]
         targetCount = total * self.threshold
@@ -35,10 +45,8 @@ class DropTransformer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        if (not X is pd.DataFrame):
-            X = pd.DataFrame(X)
-
-        return X.iloc[:, self.colsToKeep]
+        X_ = X.copy()
+        return X_.loc[:, self.colsToKeep]
 
 
 class CorrelationSelection(BaseEstimator, TransformerMixin):
@@ -52,15 +60,13 @@ class CorrelationSelection(BaseEstimator, TransformerMixin):
 
     def __init__(self, threshold=0.05) -> None:
         self.threshold = threshold
+        self.colsToKeep = []
         super().__init__()
 
     # May need to transform to dataframe
     def fit(self, X, y):
-        if (not X is pd.DataFrame):
-            X = pd.DataFrame(X)
-
-        if (not y is pd.Series):
-            y = pd.Series(y)
+        X = transform_to_dataframe(X)
+        y = transform_to_series(y)
 
         corr = X.corrwith(y).abs()
         self.colsToKeep = (corr >= self.threshold).to_list()
@@ -69,9 +75,9 @@ class CorrelationSelection(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        return X.iloc[:, self.colsToKeep]
+        X = transform_to_dataframe(X)
+        X = X.loc[:, self.colsToKeep]
+        return X
 
 
 # Assume 1-0 class label
@@ -92,7 +98,7 @@ def splitByMajority(X: pd.DataFrame, y: pd.Series):
     if (trueX.shape[0] > falseX.shape[0]):
         return ((trueX, trueY), (falseX, falseY))
 
-    return ((falseX, falseY), (trueX, trueY),)
+    return ((falseX, falseY), (trueX, trueY))
 
 # Need to make it easy to combine tuple splits
 
@@ -130,34 +136,84 @@ def silhouetteScore(data: XYPair):
     return metrics.silhouette_score(X, labels=y, random_state=42)
 
 
+def assert_no_na(X: pd.DataFrame):
+    hasNulls = X.isnull().values.any()
+    assert (not hasNulls)
+
+
+def check_shape(data: XYPair):
+    (X, y) = data
+    # print(X.shape)
+    # print(y.shape)
+    assert X.shape[0] == y.shape[0]
+    assert X.index.equals(y.index)
+    assert_no_na(X)
+
+
 Clusters = Tuple[XYPair, XYPair]
 
 
-class KMeansUnderSampling(BaseSampler):
-    _sampling_type = "under-sampling"
+def kMeansUnderSampling(X, y):
+    X = transform_to_dataframe(X)
+    y = transform_to_series(y)
 
+    check_shape((X, y))
+    (majority, minority) = splitByMajority(X, y)
+    check_shape(majority)
+    check_shape(minority)
+
+    (minCluster0, minCluster1) = splitByKMeans(minority, 2)
+    (majCluster0, majCluster1) = splitByKMeans(majority, 2)
+    [check_shape(g)
+     for g in [minCluster0, minCluster1, majCluster0, majCluster1]]
+
+    group1 = combinePairs(minCluster0, majCluster0)
+    group2 = combinePairs(minCluster0, majCluster1)
+    group3 = combinePairs(minCluster1, majCluster0)
+    group4 = combinePairs(minCluster1, majCluster1)
+    [check_shape(g) for g in [group1, group2, group3, group4]]
+
+    score1 = silhouetteScore(group1)
+    score2 = silhouetteScore(group2)
+    score3 = silhouetteScore(group3)
+    score4 = silhouetteScore(group4)
+
+    highScore = pd.Series([score1, score2, score3, score4]).idxmax()
+
+    chooseMajority = majCluster0 if (
+        highScore == 0 or highScore == 3) else majCluster1
+
+    res = combineAllPairs([minCluster0, minCluster1, chooseMajority])
+
+    check_shape(res)
+
+    print(res)
+    return (shuffle(res[0]), shuffle(res[1]))
+
+
+class KMeansUnderSampling(BaseUnderSampler):
     def __init__(self):
         super().__init__()
 
-    # Need to make this work with the transform
-    # Possible need to see how to extend imblearn
-
     def _fit_resample(self, X, y) -> XYPair:
-        if (not X is pd.DataFrame):
-            X = pd.DataFrame(X)
+        X = transform_to_dataframe(X)
+        y = transform_to_series(y)
 
-        if (not y is pd.Series):
-            y = pd.Series(y)
-
+        check_shape((X, y))
         (majority, minority) = splitByMajority(X, y)
+        check_shape(majority)
+        check_shape(minority)
 
         (minCluster0, minCluster1) = splitByKMeans(minority, 2)
         (majCluster0, majCluster1) = splitByKMeans(majority, 2)
+        [check_shape(g)
+         for g in [minCluster0, minCluster1, majCluster0, majCluster1]]
 
         group1 = combinePairs(minCluster0, majCluster0)
         group2 = combinePairs(minCluster0, majCluster1)
         group3 = combinePairs(minCluster1, majCluster0)
         group4 = combinePairs(minCluster1, majCluster1)
+        [check_shape(g) for g in [group1, group2, group3, group4]]
 
         score1 = silhouetteScore(group1)
         score2 = silhouetteScore(group2)
@@ -170,25 +226,38 @@ class KMeansUnderSampling(BaseSampler):
             highScore == 0 or highScore == 3) else majCluster1
 
         res = combineAllPairs([minCluster0, minCluster1, chooseMajority])
+
+        check_shape(res)
+
         print(res)
-        return res
+        return (shuffle(res[0]), shuffle(res[1]))
 
 
-def test():
-    X, y = datasets.load_breast_cancer(return_X_y=True)
+class DropNullsTransformer(BaseEstimator, TransformerMixin):
+    colsToDrop: List[bool]
 
-    X = pd.DataFrame(X)
-    y = pd.Series(y)
+    def __init__(self) -> None:
+        super().__init__()
 
-    print(X.shape)
-    print(y.shape)
+    # May need to transform to dataframe
+    def fit(self, X, y=None):
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
 
-    model = KMeansUnderSampling()
-    (newX, newY) = model.fit_resample(X, y)
+        self.colsToDrop = (~X.isnull().any()).tolist()
+        return self
 
-    print(newX.shape)
-    print(newY.shape)
+    def transform(self, X, y=None):
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
 
-    print(newX.describe())
+        return X.iloc[:, self.colsToDrop]
 
-    exit()
+
+def outlier_rejection(X, y):
+    """This will be our function used to resample our dataset."""
+    model = ensemble.IsolationForest(
+        max_samples=100, contamination=0.4, random_state=42)
+    model.fit(X)
+    y_pred = model.predict(X)
+    return X[y_pred == 1], y[y_pred == 1]

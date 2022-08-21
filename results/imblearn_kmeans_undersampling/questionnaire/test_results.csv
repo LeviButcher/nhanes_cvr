@@ -1,0 +1,5 @@
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
+0,LogisticRegression,MinMaxScaler,SelectPercentile,SimpleImputer,ClusterCentroids,LR,MMS,SP,SI,CC,0.3021978021978022,0.8020833333333334,0.43899657924743446,0.7888865050418365,{},"[[3292  889]
+ [  95  385]]"
+0,LogisticRegression,StandardScaler,SelectPercentile,SimpleImputer,ClusterCentroids,LR,SS,SP,SI,CC,0.30132450331125826,0.7583333333333333,0.43127962085308064,0.7940356146749624,{},"[[3337  844]
+ [ 116  364]]"

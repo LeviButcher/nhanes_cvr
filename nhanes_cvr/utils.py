@@ -255,3 +255,41 @@ def makeDirectoryIfNotExists(directory: str) -> bool:
 
     except:
         return False
+
+
+def get_nhanes_dataset() -> pd.DataFrame:
+    # Years used for cvd in "A Data Driven Approach..."
+    nhanesYears = {types.ContinuousNHANES.Fifth,
+                   types.ContinuousNHANES.Sixth,
+                   types.ContinuousNHANES.Seventh,
+                   types.ContinuousNHANES.Eighth}
+    # nhanesYears = types.allContinuousNHANES()
+    # Sixth - https://wwwn.cdc.gov/Nchs/Nhanes/2009-2010/UCOSMO_F.XPT
+
+    # Fails here?? - https://wwwn.cdc.gov/Nchs/Nhanes/20011-2012/PAXMIN_G
+
+    # Download NHANES
+    updateCache = False
+    NHANES_DATASET = cache_nhanes("./data/nhanes.csv",
+                                  lambda: download.downloadAllCodebooksWithMortalityForYears(nhanesYears), updateCache=updateCache)
+
+    # Process NHANES
+    LINKED_DATASET = NHANES_DATASET.loc[NHANES_DATASET.ELIGSTAT == 1, :]
+    DEAD_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 1, :]
+    ALIVE_DATASET = LINKED_DATASET.loc[LINKED_DATASET.MORTSTAT == 0, :]
+
+    print(f"Entire Dataset: {NHANES_DATASET.shape}")
+    print(f"Linked Mortality Dataset: {LINKED_DATASET.shape}")
+    print(f"Dead Dataset: {DEAD_DATASET.shape}")
+    print(f"Alive Dataset: {ALIVE_DATASET.shape}")
+    DEAD_DATASET.describe().to_csv("./results/dead_dataset_info.csv")
+
+    dataset = NHANES_DATASET
+    above20AndNonPregnant = (dataset["RIDAGEYR"] >= 20) & (
+        dataset["RHD143"] != 1)
+    dataset = dataset.loc[above20AndNonPregnant, :]
+    dataset = dataset.reset_index(drop=True).drop(columns='SEQN')
+    dataset.describe().to_csv('./results/main_dataset_info.csv')
+
+    print(f"Main Dataset: {dataset.shape}")
+    return dataset
