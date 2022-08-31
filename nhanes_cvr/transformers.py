@@ -9,6 +9,7 @@ from sklearn.utils import shuffle
 from imblearn import pipeline
 from nhanes_cvr.utils import XYPair
 from imblearn.under_sampling.base import BaseUnderSampler
+import numpy as np
 
 
 def transform_to_dataframe(X):
@@ -143,8 +144,6 @@ def assert_no_na(X: pd.DataFrame):
 
 def check_shape(data: XYPair):
     (X, y) = data
-    # print(X.shape)
-    # print(y.shape)
     assert X.shape[0] == y.shape[0]
     assert X.index.equals(y.index)
     assert_no_na(X)
@@ -186,51 +185,7 @@ def kMeansUnderSampling(X, y):
     res = combineAllPairs([minCluster0, minCluster1, chooseMajority])
 
     check_shape(res)
-
-    print(res)
-    return (shuffle(res[0]), shuffle(res[1]))
-
-
-class KMeansUnderSampling(BaseUnderSampler):
-    def __init__(self):
-        super().__init__()
-
-    def _fit_resample(self, X, y) -> XYPair:
-        X = transform_to_dataframe(X)
-        y = transform_to_series(y)
-
-        check_shape((X, y))
-        (majority, minority) = splitByMajority(X, y)
-        check_shape(majority)
-        check_shape(minority)
-
-        (minCluster0, minCluster1) = splitByKMeans(minority, 2)
-        (majCluster0, majCluster1) = splitByKMeans(majority, 2)
-        [check_shape(g)
-         for g in [minCluster0, minCluster1, majCluster0, majCluster1]]
-
-        group1 = combinePairs(minCluster0, majCluster0)
-        group2 = combinePairs(minCluster0, majCluster1)
-        group3 = combinePairs(minCluster1, majCluster0)
-        group4 = combinePairs(minCluster1, majCluster1)
-        [check_shape(g) for g in [group1, group2, group3, group4]]
-
-        score1 = silhouetteScore(group1)
-        score2 = silhouetteScore(group2)
-        score3 = silhouetteScore(group3)
-        score4 = silhouetteScore(group4)
-
-        highScore = pd.Series([score1, score2, score3, score4]).idxmax()
-
-        chooseMajority = majCluster0 if (
-            highScore == 0 or highScore == 3) else majCluster1
-
-        res = combineAllPairs([minCluster0, minCluster1, chooseMajority])
-
-        check_shape(res)
-
-        print(res)
-        return (shuffle(res[0]), shuffle(res[1]))
+    return (res[0].to_numpy(), res[1].to_numpy())
 
 
 class DropNullsTransformer(BaseEstimator, TransformerMixin):
@@ -261,3 +216,30 @@ def outlier_rejection(X, y):
     model.fit(X)
     y_pred = model.predict(X)
     return X[y_pred == 1], y[y_pred == 1]
+
+
+def iqrRemoval(X, y) -> XYPair:
+    X = transform_to_dataframe(X)
+    y = transform_to_series(y)
+
+    factor = 1.5
+    q3 = X.quantile(q=.75, axis=0)
+    q1 = X.quantile(q=.25, axis=0)
+    IQR = q3 - q1
+    upper_bound = q3 + factor * IQR
+    lower_bound = q1 - factor * IQR
+
+    isOutlier = ((X > upper_bound) | (X < lower_bound)).any(axis=1)
+
+    return X.loc[~isOutlier, :], y.loc[~isOutlier]
+
+
+def iqrBinaryClassesRemoval(X, y) -> XYPair:
+    X = transform_to_dataframe(X)
+    y = transform_to_series(y)
+    ((posX, posY), (negX, negY)) = splitByMajority(X, y)
+
+    (posSet) = iqrRemoval(posX, posY)
+    (negSet) = iqrRemoval(negX, negY)
+
+    return combinePairs(posSet, negSet)

@@ -24,34 +24,34 @@ zScoreThreshold = 2.9
 nullThreshold = 3
 
 models = [
-    (linear_model.LogisticRegression, {}
-     #  [
-     #      {
-     #          'model__solver': ['sag'],
-     #          'model__penalty': ['l2'],
-     #          'model__class_weight': [None, 'balanced'],
-     #          'model__C': stats.expon(scale=100)
-     #      },
-     #      {
-     #          'model__solver': ['saga'],
-     #          'model__penalty': ['elasticnet', 'l2', 'l1'],
-     #          'model__class_weight': [None, 'balanced'],
-     #          'model__random_state': [randomState],
-     #          'model__C': stats.expon(scale=100)
-     #      }
-     #  ]
-     ),
-    # ((ensemble.RandomForestClassifier), {})
-    #  {
-    #     # 'model__n_estimators': np.arange(100, 500, 5),
-    #     # 'model__min_samples_split': np.arange(1, 30, 2),
-    #     # 'model__max_depth': np.arange(20, 100, 10),
-    #     # 'model__min_samples_leaf': np.arange(1, 50, 20),
-    #     # 'model__class_weight': [None, 'balanced', 'balanced_subsample'],
-    #     # 'model__criterion': ['gini', 'entropy', 'log_loss'],
-    #     # 'model__max_features': np.arange(5, 200, 5),
-    #     'model__random_state': [randomState]
-    # }),
+    # (linear_model.LogisticRegression,
+    #  [
+    #      {
+    #          'model__solver': ['sag'],
+    #          'model__penalty': ['l2'],
+    #          'model__class_weight': [None, 'balanced'],
+    #          'model__C': stats.expon(scale=100)
+    #      },
+    #      {
+    #          'model__solver': ['saga'],
+    #          'model__penalty': ['elasticnet', 'l2', 'l1'],
+    #          'model__class_weight': [None, 'balanced'],
+    #          'model__random_state': [randomState],
+    #          'model__C': stats.expon(scale=100)
+    #      }
+    #  ]
+    #  ),
+    ((ensemble.RandomForestClassifier),
+     {
+        # 'model__n_estimators': np.arange(100, 500, 5),
+        # 'model__min_samples_split': np.arange(1, 30, 2),
+        # 'model__max_depth': np.arange(20, 100, 10),
+        # 'model__min_samples_leaf': np.arange(1, 50, 20),
+        # 'model__class_weight': [None, 'balanced', 'balanced_subsample'],
+        # 'model__criterion': ['gini', 'entropy', 'log_loss'],
+        # 'model__max_features': np.arange(5, 200, 5),
+        'model__random_state': [randomState]
+    }),
     # (neural_network.MLPClassifier, {}
     #  #  [{
     #  #      'model__solver': ['adam'],
@@ -78,19 +78,8 @@ models = [
     #  ),
 ]
 
-# models = [
-#     (linear_model.LogisticRegression,
-#      {
-#          'model__C': [.5, 1],
-#          'model__solver': ['lbfgs', 'liblinear']
-#      }
-#      ),
-#     (ensemble.RandomForestClassifier,
-#      {
-#          'model__n_estimators': [100, 50],
-#          'model__criterion': ['gini', 'entropy']
-#      }
-#      )]
+
+models = [(m, {}) for m, _ in models]
 
 scalers = [
     preprocessing.MinMaxScaler,

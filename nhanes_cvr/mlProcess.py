@@ -7,7 +7,8 @@ import seaborn as sns
 from nhanes_cvr import utils
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn import pipeline
-from nhanes_cvr.transformers import DropTransformer
+from imblearn import FunctionSampler
+from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval
 
 # --- TYPES ---
 
@@ -47,6 +48,7 @@ Const = Callable[[], T]
 ConstList = List[Const[T]]
 Selection = Union[feature_selection.SelectFwe,
                   feature_selection.VarianceThreshold, feature_selection.SelectPercentile]
+Outlier = iqrBinaryClassesRemoval
 Folding = model_selection.StratifiedKFold
 
 # Pipeline Keys
@@ -84,6 +86,25 @@ def generatePipelinesWithSampling(models: List[GenModelConf], scaling: ConstList
         for r in replacements
         for samp in samplings
         for sel in selections]
+
+
+def generatePipelinesWithSamplingAndOutlier(models: List[GenModelConf], scaling: ConstList[Scaling],
+                                            replacements: ConstList[Replacement], samplings: ConstList[Sampler],
+                                            selections: ConstList[Selection], outliers: ConstList[Outlier]):
+    return [(pipeline.Pipeline([
+        ('drop', DropTransformer(threshold=0.5)),
+        ('replacement', r()),
+        ('scaling', s()),
+        ('selection', sel()),
+        ('outlier', out()),
+        ('sampling', samp()),
+        ('model', m())]), c)
+        for m, c in models
+        for s in scaling
+        for r in replacements
+        for samp in samplings
+        for sel in selections
+        for out in outliers]
 
 
 def getClassName(x):

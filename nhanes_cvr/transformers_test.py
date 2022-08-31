@@ -1,4 +1,4 @@
-from nhanes_cvr.transformers import DropTransformer
+from nhanes_cvr.transformers import DropTransformer,  iqrRemoval
 import pandas as pd
 import numpy as np
 
@@ -22,3 +22,23 @@ def test_dropTransformer_basic():
 
     assert dt.colsToKeep == [False, True, True]
     assert res.equals(data.iloc[:, 1:])
+
+
+def test_iqr_removal():
+    data = pd.DataFrame([[1, 2],
+                         [2, 2],
+                         [3, 2],
+                         [4, 2],
+                         [5, 2],
+                         [6, 2],
+                         [7, 2],
+                         [8, 2],
+                         [9, 2],
+                         [10, 2]
+                         ], columns=["a", "b"])
+
+    Y = pd.Series([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+    res = iqrRemoval(data, Y)
+
+    assert res[0].shape <= data.shape

@@ -1,5 +1,4 @@
 from matplotlib import pyplot as plt
-import numpy as np
 import pandas as pd
 from sklearn import feature_selection, linear_model, metrics, model_selection, preprocessing, impute, datasets
 from sklearn.decomposition import PCA
@@ -9,31 +8,10 @@ import nhanes_cvr.utils as utils
 import seaborn as sns
 import nhanes_cvr.mlProcess as ml
 from imblearn import under_sampling, combine, pipeline, FunctionSampler
-from nhanes_cvr.transformers import CorrelationSelection, DropTransformer, KMeansUnderSampling, DropNullsTransformer
+from nhanes_cvr.transformers import CorrelationSelection, DropTransformer, DropNullsTransformer, iqrBinaryClassesRemoval
 import nhanes_cvr.transformers as trans
 from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
 
-X, y = datasets.load_breast_cancer(return_X_y=True)
-X = pd.DataFrame(X)
-y = pd.Series(y)
-
-pipe = pipeline.make_pipeline(
-    DropTransformer(threshold=0.5),
-    impute.SimpleImputer(strategy='mean'),
-    preprocessing.StandardScaler(),
-    CorrelationSelection(threshold=0.05),
-    # under_sampling.ClusterCentroids(),
-    # KMeansUnderSampling(),
-    FunctionSampler(func=trans.outlier_rejection),
-    RandomForestClassifier()
-)
-
-predicted = pipe.fit(X, y).predict(X)
-print(predicted)
-
-# trans = pipe.fit_resample(X, y)
-# print(trans)
-exit()
 
 dataset = utils.get_nhanes_dataset()
 
@@ -42,8 +20,13 @@ sns.set_theme(style='darkgrid', palette='pastel')
 
 dataset.dtypes.to_csv("results/feature_types.csv")
 
+
+def identityTransform(X, y): return X, y
+
+
 labelMethods = [
-    ("questionnaire", utils.nhanesToQuestionnaireSet),
+    # ("questionnaire", utils.nhanesToQuestionnaireSet),
+    ("hypertension", utils.labelHypertensionBasedOnPaper)
     # ("lab_thresh", utils.labelCVRBasedOnLabMetrics(2)),
     # ("cardiovascular_codebook", utils.labelCVRBasedOnCardiovascularCodebook),
     # ("cvr_death", utils.nhanesToMortalitySet),
@@ -62,8 +45,14 @@ replacements = [
 ]
 
 selections = [
-    lambda: feature_selection.SelectPercentile()
+    # lambda: feature_selection.SelectPercentile(),
+    lambda: preprocessing.FunctionTransformer(lambda x: x)
     # lambda: CorrelationSelection(threshold=0.01)
+]
+
+outliers = [
+    lambda: FunctionSampler(func=iqrBinaryClassesRemoval)
+    # lambda: FunctionSampler(func=lambda x, y: (x, y))
 ]
 
 keep = (dataset.dtypes == 'float64')
@@ -80,6 +69,10 @@ for n, f in labelMethods:
     plt.scatter(X[:, 0], X[:, 1], c=Y)
     plt.savefig(f"results/{n}_pca.png")
 
+for n, f in labelMethods:
+    X, Y = f(dataset)
+    X.describe().to_csv(f"results/{n}_dataset_info.csv")
+    Y.value_counts(normalize=True).to_csv(f"results/{n}_label_info.csv")
 
 # print("No Sampling")
 
@@ -90,7 +83,7 @@ for n, f in labelMethods:
 #     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
 #                           testSize, fold, dataset, "results/no_sampling")
 
-# # -------
+# -------
 
 # print("SMOTETOMEK")
 
@@ -116,8 +109,10 @@ for n, f in labelMethods:
 
 print("KMEANS UNDERSAMPLING")
 
-cvModels = ml.generatePipelinesWithSampling(
-    models, scalers, replacements, [lambda: KMeansUnderSampling()], selections)
+cvModels = ml.generatePipelinesWithSamplingAndOutlier(
+    models, scalers, replacements, [
+        lambda: FunctionSampler(func=trans.kMeansUnderSampling)],
+    selections, outliers)
 
 for nl in labelMethods:
     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore

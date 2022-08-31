@@ -194,6 +194,27 @@ def labelCVRAndDiabetes(nhanes_dataset: pd.DataFrame) -> pd.Series:
     return labelY(labelFunc, nhanes_dataset)  # type: ignore
 
 
+def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: pd.DataFrame) -> pd.DataFrame:
+    years = nhanes_dataset.loc[:, "SDDSRVYR"]
+    keep = years.apply(lambda x: any([x == y for y in nhanes_years]))
+
+    return nhanes_dataset.loc[keep, :]
+
+
+def labelHypertensionBasedOnPaper(nhanes_dataset: pd.DataFrame) -> XYPair:
+    oldShape = nhanes_dataset.shape
+    nhanes_dataset = filterNhanesDatasetByReleaseYears([7, 8], nhanes_dataset)
+    assert nhanes_dataset.shape != oldShape
+    hypertenThreshold = 130
+    cols = ["RIAGENDR", "RIDAGEYR", "RIDRETH1",
+            "BMXBMI", "DIQ010", "SMQ020", "KIQ022"]
+    systolicCols = ["BPXSY1", "BPXSY2", "BPXSY3"]
+    meanSys = nhanes_dataset.loc[:, systolicCols].mean(axis=1)
+    y = meanSys >= hypertenThreshold
+    X = nhanes_dataset.loc[:, cols]
+    return (X, y)
+
+
 def removeOutliers(z_score, df, columns=None):
     columns = columns if columns is not None else df.columns
     scores = np.abs(stats.zscore(df.loc[:, columns]))
@@ -266,8 +287,6 @@ def get_nhanes_dataset() -> pd.DataFrame:
     # nhanesYears = types.allContinuousNHANES()
     # Sixth - https://wwwn.cdc.gov/Nchs/Nhanes/2009-2010/UCOSMO_F.XPT
 
-    # Fails here?? - https://wwwn.cdc.gov/Nchs/Nhanes/20011-2012/PAXMIN_G
-
     # Download NHANES
     updateCache = False
     NHANES_DATASET = cache_nhanes("./data/nhanes.csv",
@@ -293,3 +312,24 @@ def get_nhanes_dataset() -> pd.DataFrame:
 
     print(f"Main Dataset: {dataset.shape}")
     return dataset
+
+
+# def test():
+#     X, y = datasets.load_breast_cancer(return_X_y=True)
+#     X = pd.DataFrame(X)
+#     y = pd.Series(y)
+
+#     pipe = pipeline.make_pipeline(
+#         DropTransformer(threshold=0.5),
+#         impute.SimpleImputer(strategy='mean'),
+#         preprocessing.StandardScaler(),
+#         CorrelationSelection(threshold=0.01),
+#         FunctionSampler(func=trans.kMeansUnderSampling),
+#         # FunctionSampler(func=trans.outlier_rejection),
+#         RandomForestClassifier()
+#     )
+
+#     predicted = pipe.fit(X, y).predict(X)
+#     # trans = pipe.fit_resample(X, y)
+#     # print(trans)
+#     print(predicted)

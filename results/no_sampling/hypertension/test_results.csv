@@ -1,0 +1,5 @@
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
+0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,NoneType,RFC,MMS,FT,SI,NT,0.48588709677419356,0.37715179968701096,0.42466960352422906,0.7096487327701201,{},"[[1355  255]
+ [ 398  241]]"
+0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,NoneType,RFC,SS,FT,SI,NT,0.504930966469428,0.40062597809076683,0.4467713787085515,0.7180969319697643,{},"[[1359  251]
+ [ 383  256]]"

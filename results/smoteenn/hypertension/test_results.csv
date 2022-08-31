@@ -1,0 +1,5 @@
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
+0,RandomForestClassifier,MinMaxScaler,SelectPercentile,SimpleImputer,SMOTEENN,RFC,MMS,SP,SI,SMOTEENN,0.3526315789473684,0.10485133020344288,0.16164053075995174,0.6909737661182748,{},"[[1487  123]
+ [ 572   67]]"
+0,RandomForestClassifier,StandardScaler,SelectPercentile,SimpleImputer,SMOTEENN,RFC,SS,SP,SI,SMOTEENN,0.5267993874425727,0.5383411580594679,0.5325077399380804,0.7314361938639395,{},"[[1301  309]
+ [ 295  344]]"
