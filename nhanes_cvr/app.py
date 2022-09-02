@@ -1,27 +1,23 @@
 from matplotlib import pyplot as plt
 import pandas as pd
-from sklearn import feature_selection, linear_model, metrics, model_selection, preprocessing, impute, datasets
+from sklearn import feature_selection, model_selection, preprocessing, impute
 from sklearn.decomposition import PCA
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.neighbors import KNeighborsClassifier
 import nhanes_cvr.utils as utils
 import seaborn as sns
 import nhanes_cvr.mlProcess as ml
-from imblearn import under_sampling, combine, pipeline, FunctionSampler
-from nhanes_cvr.transformers import CorrelationSelection, DropTransformer, DropNullsTransformer, iqrBinaryClassesRemoval
+from imblearn import pipeline, FunctionSampler, over_sampling, combine, under_sampling
+from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval
 import nhanes_cvr.transformers as trans
 from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
 
 
 dataset = utils.get_nhanes_dataset()
 
+
 # Matplotlib/Seaborn Theming
 sns.set_theme(style='darkgrid', palette='pastel')
 
 dataset.dtypes.to_csv("results/feature_types.csv")
-
-
-def identityTransform(X, y): return X, y
 
 
 labelMethods = [
@@ -45,14 +41,15 @@ replacements = [
 ]
 
 selections = [
-    # lambda: feature_selection.SelectPercentile(),
-    lambda: preprocessing.FunctionTransformer(lambda x: x)
+    lambda: feature_selection.SelectPercentile(),
+    # lambda: preprocessing.FunctionTransformer(lambda x: x)
     # lambda: CorrelationSelection(threshold=0.01)
 ]
 
 outliers = [
-    lambda: FunctionSampler(func=iqrBinaryClassesRemoval)
-    # lambda: FunctionSampler(func=lambda x, y: (x, y))
+    # lambda: FunctionSampler(func=iqrBinaryClassesRemoval)
+    # Use when Doing iqrBinaryClassesRemoval on all dataset
+    lambda: preprocessing.FunctionTransformer()
 ]
 
 keep = (dataset.dtypes == 'float64')
@@ -68,42 +65,62 @@ for n, f in labelMethods:
     X = pcaPipe.fit_transform(X, Y)
     plt.scatter(X[:, 0], X[:, 1], c=Y)
     plt.savefig(f"results/{n}_pca.png")
+    plt.close()
 
 for n, f in labelMethods:
     X, Y = f(dataset)
     X.describe().to_csv(f"results/{n}_dataset_info.csv")
     Y.value_counts(normalize=True).to_csv(f"results/{n}_label_info.csv")
 
-# print("No Sampling")
+print("No Sampling")
 
-# cvModels = ml.generatePipelines(
-#     models, scalers, replacements, selections)  # type: ignore
+cvModels = ml.generatePipelines(
+    models, scalers, replacements, selections)  # type: ignore
 
-# for nl in labelMethods:
-#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-#                           testSize, fold, dataset, "results/no_sampling")
-
-# -------
-
-# print("SMOTETOMEK")
-
-# cvModels = ml.generatePipelinesWithSampling(
-#     models, scalers, replacements, [lambda: combine.SMOTETomek()], selections)  # type: ignore
-
-# for nl in labelMethods:
-#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-#                           testSize, fold, dataset, "results/smotetomek")
+for nl in labelMethods:
+    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                          testSize, fold, dataset, "results/no_sampling")
 
 # -------
 
-# print("SMOTEENN")
+print("SMOTETOMEK")
 
-# cvModels = ml.generatePipelinesWithSampling(
-#     models, scalers, replacements, [lambda: combine.SMOTEENN()], selections)  # type: ignore
+cvModels = ml.generatePipelinesWithSampling(
+    models, scalers, replacements, [lambda: combine.SMOTETomek()], selections)  # type: ignore
 
-# for nl in labelMethods:
-#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-#                           testSize, fold, dataset, "results/smoteenn")
+for nl in labelMethods:
+    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                          testSize, fold, dataset, "results/smotetomek")
+
+print("RandomUnderSampler")
+
+cvModels = ml.generatePipelinesWithSampling(
+    models, scalers, replacements, [lambda: under_sampling.RandomUnderSampler()], selections)  # type: ignore
+
+for nl in labelMethods:
+    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                          testSize, fold, dataset, "results/random_under_sampler")
+
+# ------
+print("SMOTE")
+
+cvModels = ml.generatePipelinesWithSampling(
+    models, scalers, replacements, [lambda: over_sampling.SMOTE()], selections)  # type: ignore
+
+for nl in labelMethods:
+    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                          testSize, fold, dataset, "results/smote")
+
+# -------
+
+print("SMOTEENN")
+
+cvModels = ml.generatePipelinesWithSampling(
+    models, scalers, replacements, [lambda: combine.SMOTEENN()], selections)  # type: ignore
+
+for nl in labelMethods:
+    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                          testSize, fold, dataset, "results/smoteenn")
 
 # -------
 
@@ -118,12 +135,13 @@ for nl in labelMethods:
     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
                           testSize, fold, dataset, "results/kmeans_undersampling")
 
+# ----
 
-# print("imblearn KMEANS UNDERSAMPLING")
+print("cluster_centroids")
 
-# cvModels = ml.generatePipelinesWithSampling(
-#     models, scalers, replacements, [lambda: under_sampling.ClusterCentroids()], selections)
+cvModels = ml.generatePipelinesWithSampling(
+    models, scalers, replacements, [lambda: under_sampling.ClusterCentroids()], selections)
 
-# for nl in labelMethods:
-#     ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-#                           testSize, fold, dataset, "results/imblearn_kmeans_undersampling")
+for nl in labelMethods:
+    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                          testSize, fold, dataset, "results/cluster_centroids")

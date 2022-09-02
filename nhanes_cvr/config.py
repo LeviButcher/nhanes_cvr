@@ -30,14 +30,14 @@ models = [
     #          'model__solver': ['sag'],
     #          'model__penalty': ['l2'],
     #          'model__class_weight': [None, 'balanced'],
-    #          'model__C': stats.expon(scale=100)
+    #          #  'model__C': stats.expon(scale=100)
     #      },
     #      {
     #          'model__solver': ['saga'],
     #          'model__penalty': ['elasticnet', 'l2', 'l1'],
     #          'model__class_weight': [None, 'balanced'],
     #          'model__random_state': [randomState],
-    #          'model__C': stats.expon(scale=100)
+    #          #  'model__C': stats.expon(scale=100)
     #      }
     #  ]
     #  ),
@@ -64,24 +64,25 @@ models = [
     #  #      # 'model__learning_rate': ['adaptive', 'invscaling']
     #  #  }]
     #  ),
-    # (svm.SVC, {
-    #     # 'model__C': stats.expon(scale=100),
-    #     # 'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
-    #     # 'model__class_weight': [None, 'balanced'],
-    # }),
-    # (neighbors.KNeighborsClassifier, {}
-    #  #  {
-    #  #      "model__weights": ["uniform", "distance"],
-    #  #      "model__n_neighbors": np.arange(1, 20, 10),
-    #  #      "model__leaf_size": np.arange(30, 100, 10)
-    #  #  }
-    #  ),
+    (svm.SVC, {
+        # 'model__C': stats.expon(scale=100),
+        # 'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
+        # 'model__class_weight': [None, 'balanced'],
+    }),
+    (neighbors.KNeighborsClassifier, {}
+     #  {
+     #      "model__weights": ["uniform", "distance"],
+     #      "model__n_neighbors": np.arange(1, 20, 10),
+     #      "model__leaf_size": np.arange(30, 100, 10)
+     #  }
+     ),
 ]
 
 
 models = [(m, {}) for m, _ in models]
 
 scalers = [
+    preprocessing.FunctionTransformer,
     preprocessing.MinMaxScaler,
     # preprocessing.Normalizer,
     preprocessing.StandardScaler,

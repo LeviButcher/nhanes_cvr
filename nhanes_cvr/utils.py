@@ -203,15 +203,22 @@ def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: p
 
 def labelHypertensionBasedOnPaper(nhanes_dataset: pd.DataFrame) -> XYPair:
     oldShape = nhanes_dataset.shape
-    nhanes_dataset = filterNhanesDatasetByReleaseYears([7, 8], nhanes_dataset)
+    nhanes_dataset = filterNhanesDatasetByReleaseYears(
+        [6, 7, 8], nhanes_dataset)
     assert nhanes_dataset.shape != oldShape
     hypertenThreshold = 130
     cols = ["RIAGENDR", "RIDAGEYR", "RIDRETH1",
             "BMXBMI", "DIQ010", "SMQ020", "KIQ022"]
     systolicCols = ["BPXSY1", "BPXSY2", "BPXSY3"]
+
+    toDrop = nhanes_dataset.loc[:, systolicCols +
+                                ["BMXBMI"]].isna().any(axis=1)
+    nhanes_dataset = nhanes_dataset.loc[~toDrop, :]
+
     meanSys = nhanes_dataset.loc[:, systolicCols].mean(axis=1)
     y = meanSys >= hypertenThreshold
     X = nhanes_dataset.loc[:, cols]
+
     return (X, y)
 
 

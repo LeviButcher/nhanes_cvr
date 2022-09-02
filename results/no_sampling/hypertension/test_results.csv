@@ -1,5 +1,19 @@
 ,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
-0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,NoneType,RFC,MMS,FT,SI,NT,0.48588709677419356,0.37715179968701096,0.42466960352422906,0.7096487327701201,{},"[[1355  255]
- [ 398  241]]"
-0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,NoneType,RFC,SS,FT,SI,NT,0.504930966469428,0.40062597809076683,0.4467713787085515,0.7180969319697643,{},"[[1359  251]
- [ 383  256]]"
+0,RandomForestClassifier,FunctionTransformer,SelectPercentile,SimpleImputer,NoneType,RFC,FT,SP,SI,NT,0.5709459459459459,0.30505415162454874,0.3976470588235294,0.7539644401729938,{},"[[1400  127]
+ [ 385  169]]"
+0,RandomForestClassifier,MinMaxScaler,SelectPercentile,SimpleImputer,NoneType,RFC,MMS,SP,SI,NT,0.574468085106383,0.2924187725631769,0.3875598086124402,0.7539644401729938,{},"[[1407  120]
+ [ 392  162]]"
+0,RandomForestClassifier,StandardScaler,SelectPercentile,SimpleImputer,NoneType,RFC,SS,SP,SI,NT,0.574468085106383,0.2924187725631769,0.3875598086124402,0.7539644401729938,{},"[[1407  120]
+ [ 392  162]]"
+0,SVC,FunctionTransformer,SelectPercentile,SimpleImputer,NoneType,SVC,FT,SP,SI,NT,0.5565749235474006,0.3285198555956679,0.41316685584562995,0.7515617491590582,{},"[[1382  145]
+ [ 372  182]]"
+0,SVC,MinMaxScaler,SelectPercentile,SimpleImputer,NoneType,SVC,MMS,SP,SI,NT,0.5565749235474006,0.3285198555956679,0.41316685584562995,0.7515617491590582,{},"[[1382  145]
+ [ 372  182]]"
+0,SVC,StandardScaler,SelectPercentile,SimpleImputer,NoneType,SVC,SS,SP,SI,NT,0.5565749235474006,0.3285198555956679,0.41316685584562995,0.7515617491590582,{},"[[1382  145]
+ [ 372  182]]"
+0,KNeighborsClassifier,FunctionTransformer,SelectPercentile,SimpleImputer,NoneType,KNC,FT,SP,SI,NT,0.4927536231884058,0.24548736462093862,0.327710843373494,0.7318596828447862,{},"[[1387  140]
+ [ 418  136]]"
+0,KNeighborsClassifier,MinMaxScaler,SelectPercentile,SimpleImputer,NoneType,KNC,MMS,SP,SI,NT,0.4927536231884058,0.24548736462093862,0.327710843373494,0.7318596828447862,{},"[[1387  140]
+ [ 418  136]]"
+0,KNeighborsClassifier,StandardScaler,SelectPercentile,SimpleImputer,NoneType,KNC,SS,SP,SI,NT,0.4927536231884058,0.24548736462093862,0.327710843373494,0.7318596828447862,{},"[[1387  140]
+ [ 418  136]]"

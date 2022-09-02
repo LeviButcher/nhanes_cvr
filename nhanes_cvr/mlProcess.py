@@ -8,7 +8,7 @@ from nhanes_cvr import utils
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn import pipeline
 from imblearn import FunctionSampler
-from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval
+from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval, iqrRemoval
 
 # --- TYPES ---
 
@@ -186,8 +186,8 @@ def trainTestProcess(cvModels: CVModelList, scoring: Scoring, target: str,
                      testX: pd.DataFrame, testY: pd.Series, saveDir: str) -> CVTestDF:
     utils.makeDirectoryIfNotExists(saveDir)
     scoringNames = list(scoring.keys())
-    cvTrainScores = [f"mean_train_{s}" for s in scoringNames]
-    cvTestScores = [f"mean_test_{s}" for s in scoringNames]
+    # cvTrainScores = [f"mean_train_{s}" for s in scoringNames]
+    # cvTestScores = [f"mean_test_{s}" for s in scoringNames]
     saveDir = f"{saveDir}/"
     features = trainX.columns.to_list()
 
@@ -216,7 +216,7 @@ def trainTestProcess(cvModels: CVModelList, scoring: Scoring, target: str,
     testResults.to_csv(f"{saveDir}test_results.csv")
     # Test Plots
     plotTestResults(testResults, scoringNames,
-                    "test scores", f"{saveDir}test_scores")
+                    f"{saveDir} - test scores", f"{saveDir}test_scores")
     plotPrecisionRecallForModels(
         trainedModels, testX, testY, f"{saveDir}test_precision_recall")
     plotROCCurveForModels(trainedModels, testX, testY,
@@ -246,6 +246,10 @@ def labelThenTrainTest(namedLabeller: NamedLabeller, models: CVModelList, scorin
                        target: str, testSize: float, cv: Fold, data: pd.DataFrame, saveDir: str):
     name, labeller = namedLabeller
     (X, Y) = labeller(data)
+
+    # TODO: Remove Later
+    X, Y = iqrBinaryClassesRemoval(X, Y)
+
     utils.makeDirectoryIfNotExists(saveDir)
     saveDir = f"{saveDir}/{name}"
     utils.makeDirectoryIfNotExists(saveDir)
@@ -263,42 +267,42 @@ def train_test_idx(testSize: float, dataset: pd.DataFrame) -> Tuple[pd.Series, p
     return (train, test)
 
 
-def trainModel(X, Y, model: Model):
-    scores = model_selection.cross_validate(
-        model, X, Y, cv=10, n_jobs=-1, scoring='f1')
-    model = model.fit(X, Y)
-    return model
+# def trainModel(X, Y, model: Model):
+#     scores = model_selection.cross_validate(
+#         model, X, Y, cv=10, n_jobs=-1, scoring='f1')
+#     model = model.fit(X, Y)
+#     return model
 
 
 def concatString(xs: List[str]) -> str:
     return functools.reduce(lambda acc, curr: acc + curr, xs, "")
 
 
-def mortalityAnalysis(dataset: pd.DataFrame, selector: Selector, labellers: List[NamedLabeller], testSize: float) -> None:
-    dataset = dataset.reset_index(drop=True)
-    trainIdx, testIdx = train_test_idx(testSize, dataset)
-    deadViaCV = utils.labelCVRViaCVRDeath(dataset).loc[testIdx]
-    # Add in Mortality Labels then make bar chart
-    predictions = []
-    for n, l in labellers:
-        xy = l(dataset)
-        (X, Y) = selector("results/")(xy)  # type: ignore
-        trainX, trainY = X.loc[trainIdx], Y.loc[trainIdx]
-        testX, testY = X.loc[testIdx], Y.loc[testIdx]
-        trainedModel = trainModel(
-            trainX, trainY, ensemble.RandomForestClassifier())
-        predictedY = pd.Series(trainedModel.predict(testX))
-        predictions.append(predictedY)
+# def mortalityAnalysis(dataset: pd.DataFrame, selector: Selector, labellers: List[NamedLabeller], testSize: float) -> None:
+#     dataset = dataset.reset_index(drop=True)
+#     trainIdx, testIdx = train_test_idx(testSize, dataset)
+#     deadViaCV = utils.labelCVRViaCVRDeath(dataset).loc[testIdx]
+#     # Add in Mortality Labels then make bar chart
+#     predictions = []
+#     for n, l in labellers:
+#         xy = l(dataset)
+#         (X, Y) = selector("results/")(xy)  # type: ignore
+#         trainX, trainY = X.loc[trainIdx], Y.loc[trainIdx]
+#         testX, testY = X.loc[testIdx], Y.loc[testIdx]
+#         trainedModel = trainModel(
+#             trainX, trainY, ensemble.RandomForestClassifier())
+#         predictedY = pd.Series(trainedModel.predict(testX))
+#         predictions.append(predictedY)
 
-    predDF = pd.concat(predictions, axis=1).astype(str)
-    encodedPred = predDF.apply(concatString, axis=1)
-    print(encodedPred)
-    results = pd.concat([encodedPred, deadViaCV], axis=1)
-    results.columns = ["encoded", "deadViaCV"]
+#     predDF = pd.concat(predictions, axis=1).astype(str)
+#     encodedPred = predDF.apply(concatString, axis=1)
+#     print(encodedPred)
+#     results = pd.concat([encodedPred, deadViaCV], axis=1)
+#     results.columns = ["encoded", "deadViaCV"]
 
-    sns.histplot(data=results, x='encoded', hue='deadViaCV')
-    plt.savefig("results/mortalityAnalysis")
-    plt.close()
+#     sns.histplot(data=results, x='encoded', hue='deadViaCV')
+#     plt.savefig("results/mortalityAnalysis")
+    # plt.close()
 
 
 # --- PLOTTING ---
@@ -369,6 +373,7 @@ def plotTestResults(results: CVTestDF, scoring: List[str], title: str, savePath:
 
     g.fig.subplots_adjust(top=.9)
     g.fig.suptitle(title)
+    # plt.title(title)
     plt.savefig(savePath)
     plt.close()
 

@@ -115,7 +115,6 @@ def splitByKMeans(data: XYPair, k: int) -> List[XYPair]:
     for i, v in clusterCounts.iteritems():
         toKeep = (assignedClusters == i)
         clusterData = (X.loc[toKeep, :], y.loc[toKeep])
-        assert clusterData[0].shape[0] == v
         clusterSplits.append(clusterData)
 
     return clusterSplits
@@ -163,14 +162,12 @@ def kMeansUnderSampling(X, y):
 
     (minCluster0, minCluster1) = splitByKMeans(minority, 2)
     (majCluster0, majCluster1) = splitByKMeans(majority, 2)
-    [check_shape(g)
-     for g in [minCluster0, minCluster1, majCluster0, majCluster1]]
 
     group1 = combinePairs(minCluster0, majCluster0)
     group2 = combinePairs(minCluster0, majCluster1)
+
     group3 = combinePairs(minCluster1, majCluster0)
     group4 = combinePairs(minCluster1, majCluster1)
-    [check_shape(g) for g in [group1, group2, group3, group4]]
 
     score1 = silhouetteScore(group1)
     score2 = silhouetteScore(group2)
@@ -179,8 +176,9 @@ def kMeansUnderSampling(X, y):
 
     highScore = pd.Series([score1, score2, score3, score4]).idxmax()
 
+    # Pick majority cluster with highest silloute score
     chooseMajority = majCluster0 if (
-        highScore == 0 or highScore == 3) else majCluster1
+        highScore == 0 or highScore == 2) else majCluster1
 
     res = combineAllPairs([minCluster0, minCluster1, chooseMajority])
 
@@ -242,4 +240,13 @@ def iqrBinaryClassesRemoval(X, y) -> XYPair:
     (posSet) = iqrRemoval(posX, posY)
     (negSet) = iqrRemoval(negX, negY)
 
-    return combinePairs(posSet, negSet)
+    return shufflePair(combinePairs(posSet, negSet))
+
+
+def shufflePair(data: XYPair) -> XYPair:
+    X, y = data
+    X = X.assign(y=y)
+    X = X.sample(frac=1)
+    y = X.y
+    X = X.drop(columns=['y'])
+    return (X, y)
