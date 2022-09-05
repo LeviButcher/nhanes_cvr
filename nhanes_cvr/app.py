@@ -10,6 +10,9 @@ from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval
 import nhanes_cvr.transformers as trans
 from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
 
+utils.isolatedRun()
+exit()
+
 
 dataset = utils.get_nhanes_dataset()
 
@@ -72,76 +75,21 @@ for n, f in labelMethods:
     X.describe().to_csv(f"results/{n}_dataset_info.csv")
     Y.value_counts(normalize=True).to_csv(f"results/{n}_label_info.csv")
 
-print("No Sampling")
 
-cvModels = ml.generatePipelines(
-    models, scalers, replacements, selections)  # type: ignore
+samplerRuns = [
+    ("no_sampling", lambda: FunctionSampler()),
+    ("random_undersampling", under_sampling.RandomUnderSampler),
+    # ("smotetomek", combine.SMOTETomek),
+    # ("smote", over_sampling.SMOTE),
+    # ("smoteenn", combine.SMOTEENN),
+    ("kmeans_undersampling", lambda: FunctionSampler(func=trans.kMeansUnderSampling)),
+    # ("cluster_centroids", under_sampling.ClusterCentroids)
+]
 
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/no_sampling")
-
-# -------
-
-print("SMOTETOMEK")
-
-cvModels = ml.generatePipelinesWithSampling(
-    models, scalers, replacements, [lambda: combine.SMOTETomek()], selections)  # type: ignore
-
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/smotetomek")
-
-print("RandomUnderSampler")
-
-cvModels = ml.generatePipelinesWithSampling(
-    models, scalers, replacements, [lambda: under_sampling.RandomUnderSampler()], selections)  # type: ignore
-
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/random_under_sampler")
-
-# ------
-print("SMOTE")
-
-cvModels = ml.generatePipelinesWithSampling(
-    models, scalers, replacements, [lambda: over_sampling.SMOTE()], selections)  # type: ignore
-
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/smote")
-
-# -------
-
-print("SMOTEENN")
-
-cvModels = ml.generatePipelinesWithSampling(
-    models, scalers, replacements, [lambda: combine.SMOTEENN()], selections)  # type: ignore
-
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/smoteenn")
-
-# -------
-
-print("KMEANS UNDERSAMPLING")
-
-cvModels = ml.generatePipelinesWithSamplingAndOutlier(
-    models, scalers, replacements, [
-        lambda: FunctionSampler(func=trans.kMeansUnderSampling)],
-    selections, outliers)
-
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/kmeans_undersampling")
-
-# ----
-
-print("cluster_centroids")
-
-cvModels = ml.generatePipelinesWithSampling(
-    models, scalers, replacements, [lambda: under_sampling.ClusterCentroids()], selections)
-
-for nl in labelMethods:
-    ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                          testSize, fold, dataset, "results/cluster_centroids")
+for n, sampler in samplerRuns:
+    print(n)
+    cvModels = ml.generatePipelinesWithSampling(
+        models, scalers, replacements, [sampler], selections)  # type: ignore
+    for nl in labelMethods:
+        ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
+                              testSize, fold, dataset, f"results/{n}")

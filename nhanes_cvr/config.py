@@ -69,13 +69,13 @@ models = [
         # 'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
         # 'model__class_weight': [None, 'balanced'],
     }),
-    (neighbors.KNeighborsClassifier, {}
-     #  {
-     #      "model__weights": ["uniform", "distance"],
-     #      "model__n_neighbors": np.arange(1, 20, 10),
-     #      "model__leaf_size": np.arange(30, 100, 10)
-     #  }
-     ),
+    # (neighbors.KNeighborsClassifier, {}
+    #  {
+    #      "model__weights": ["uniform", "distance"],
+    #      "model__n_neighbors": np.arange(1, 20, 10),
+    #      "model__leaf_size": np.arange(30, 100, 10)
+    #  }
+    #  ),
 ]
 
 

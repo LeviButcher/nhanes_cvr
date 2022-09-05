@@ -8,9 +8,9 @@ from typing import List
 import pandas as pd
 from toolz import curry
 
-XSet = pd.DataFrame
-YSet = pd.Series
-XYPair = Tuple[XSet, YSet]
+
+from nhanes_cvr.transformers import iqrBinaryClassesRemoval
+from nhanes_cvr.types import XYPair
 
 
 def getClassName(x) -> str:
@@ -204,7 +204,7 @@ def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: p
 def labelHypertensionBasedOnPaper(nhanes_dataset: pd.DataFrame) -> XYPair:
     oldShape = nhanes_dataset.shape
     nhanes_dataset = filterNhanesDatasetByReleaseYears(
-        [6, 7, 8], nhanes_dataset)
+        [9, 10], nhanes_dataset)
     assert nhanes_dataset.shape != oldShape
     hypertenThreshold = 130
     cols = ["RIAGENDR", "RIDAGEYR", "RIDRETH1",
@@ -226,18 +226,6 @@ def removeOutliers(z_score, df, columns=None):
     columns = columns if columns is not None else df.columns
     scores = np.abs(stats.zscore(df.loc[:, columns]))
     return (scores < z_score).all(axis=1)
-
-
-# TODO: Move this to nhanes_dl
-def cache_nhanes(cache_path: str, get_nhanse: Callable[[], types.Codebook], updateCache: bool = False) -> types.Codebook:
-    from os.path import exists
-    if exists(cache_path) and not updateCache:
-        return types.Codebook(pd.read_csv(cache_path, low_memory=False))
-
-    else:
-        res = get_nhanse()
-        res.to_csv(cache_path)
-        return res
 
 
 def generateDownloadConfig(codebooks: List[str]) -> Set[download.CodebookDownload]:
@@ -295,9 +283,11 @@ def get_nhanes_dataset() -> pd.DataFrame:
     # Sixth - https://wwwn.cdc.gov/Nchs/Nhanes/2009-2010/UCOSMO_F.XPT
 
     # Download NHANES
-    updateCache = False
-    NHANES_DATASET = cache_nhanes("./data/nhanes.csv",
-                                  lambda: download.downloadAllCodebooksWithMortalityForYears(nhanesYears), updateCache=updateCache)
+    # updateCache = False
+    cacheDir = "../nhanse-dl/nhanes_cache"
+    years = types.allContinuousNHANES()
+    NHANES_DATASET = download.readCacheNhanesYearsWithMortality(
+        cacheDir, years)
 
     # Process NHANES
     LINKED_DATASET = NHANES_DATASET.loc[NHANES_DATASET.ELIGSTAT == 1, :]
@@ -314,7 +304,7 @@ def get_nhanes_dataset() -> pd.DataFrame:
     above20AndNonPregnant = (dataset["RIDAGEYR"] >= 20) & (
         dataset["RHD143"] != 1)
     dataset = dataset.loc[above20AndNonPregnant, :]
-    dataset = dataset.reset_index(drop=True).drop(columns='SEQN')
+    dataset = dataset.reset_index(drop=True)
     dataset.describe().to_csv('./results/main_dataset_info.csv')
 
     print(f"Main Dataset: {dataset.shape}")
@@ -340,3 +330,21 @@ def get_nhanes_dataset() -> pd.DataFrame:
 #     # trans = pipe.fit_resample(X, y)
 #     # print(trans)
 #     print(predicted)
+
+def isolatedRun():
+    from sklearn import model_selection, ensemble, metrics
+    dataset = get_nhanes_dataset()
+    X, Y = labelHypertensionBasedOnPaper(dataset)
+    (X, Y) = iqrBinaryClassesRemoval(X, Y)
+
+    trainX, testX, trainY, testY = model_selection.train_test_split(
+        X, Y, test_size=.2)
+
+    model = ensemble.RandomForestClassifier()
+    model.fit(trainX, trainY)
+
+    predicted = model.predict(testX)
+    print(f"Recall: {metrics.recall_score(testY, predicted)}")
+    print(f"F1: {metrics.f1_score(testY, predicted)}")
+
+    print(X)

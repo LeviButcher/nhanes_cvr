@@ -1,15 +1,11 @@
 from functools import reduce
 from typing import List, Tuple
-from xmlrpc.client import Boolean
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.feature_selection import SelectorMixin
-from sklearn import datasets, cluster, metrics, linear_model, ensemble
-from sklearn.utils import shuffle
-from imblearn import pipeline
-from nhanes_cvr.utils import XYPair
+from sklearn import cluster, metrics,  ensemble
 from imblearn.under_sampling.base import BaseUnderSampler
-import numpy as np
+
+from nhanes_cvr.types import XYPair
 
 
 def transform_to_dataframe(X):
