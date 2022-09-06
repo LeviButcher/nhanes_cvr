@@ -78,7 +78,7 @@ class CorrelationSelection(BaseEstimator, TransformerMixin):
 
 
 # Assume 1-0 class label
-def splitByBinaryClass(X, y):
+def splitByBinaryClass(X, y) -> Tuple[XYPair]:
     trueLabel = y == 1
 
     trueX = X.loc[trueLabel, :]
@@ -86,18 +86,16 @@ def splitByBinaryClass(X, y):
     falseX = X.loc[~trueLabel, :]
     falseY = y.loc[~trueLabel]
 
-    return trueX, trueY, falseX, falseY
+    return (trueX, trueY), (falseX, falseY)
 
 
 # Majority always first in tuple
 def splitByMajority(X: pd.DataFrame, y: pd.Series):
-    trueX, trueY, falseX, falseY = splitByBinaryClass(X, y)
+    ((trueX, trueY), (falseX, falseY)) = splitByBinaryClass(X, y)
     if (trueX.shape[0] > falseX.shape[0]):
         return ((trueX, trueY), (falseX, falseY))
 
     return ((falseX, falseY), (trueX, trueY))
-
-# Need to make it easy to combine tuple splits
 
 
 def splitByKMeans(data: XYPair, k: int) -> List[XYPair]:
@@ -144,42 +142,28 @@ def check_shape(data: XYPair):
     assert_no_na(X)
 
 
-Clusters = Tuple[XYPair, XYPair]
-
-
-def kMeansUnderSampling(X, y):
+def kMeansUnderSampling(X, y, k=2):
     X = transform_to_dataframe(X)
     y = transform_to_series(y)
 
-    check_shape((X, y))
     (majority, minority) = splitByMajority(X, y)
-    check_shape(majority)
-    check_shape(minority)
 
-    (minCluster0, minCluster1) = splitByKMeans(minority, 2)
-    (majCluster0, majCluster1) = splitByKMeans(majority, 2)
+    minorityClusters = splitByKMeans(minority, k)
+    majorityClusters = splitByKMeans(majority, k)
 
-    group1 = combinePairs(minCluster0, majCluster0)
-    group2 = combinePairs(minCluster0, majCluster1)
+    groups = [(majC, combinePairs(minC, majC))
+              for minC in minorityClusters for majC in majorityClusters]
 
-    group3 = combinePairs(minCluster1, majCluster0)
-    group4 = combinePairs(minCluster1, majCluster1)
+    scores = [silhouetteScore(g) for _, g in groups]
 
-    score1 = silhouetteScore(group1)
-    score2 = silhouetteScore(group2)
-    score3 = silhouetteScore(group3)
-    score4 = silhouetteScore(group4)
-
-    highScore = pd.Series([score1, score2, score3, score4]).idxmax()
+    highScore = pd.Series(scores).idxmax()
 
     # Pick majority cluster with highest silloute score
-    chooseMajority = majCluster0 if (
-        highScore == 0 or highScore == 2) else majCluster1
+    (bestMajority, _) = groups[highScore]
 
-    res = combineAllPairs([minCluster0, minCluster1, chooseMajority])
+    (X, y) = combineAllPairs(minorityClusters + [bestMajority])
 
-    check_shape(res)
-    return (res[0].to_numpy(), res[1].to_numpy())
+    return (X.to_numpy(), y.to_numpy())
 
 
 class DropNullsTransformer(BaseEstimator, TransformerMixin):
@@ -231,18 +215,12 @@ def iqrRemoval(X, y) -> XYPair:
 def iqrBinaryClassesRemoval(X, y) -> XYPair:
     X = transform_to_dataframe(X)
     y = transform_to_series(y)
-    ((posX, posY), (negX, negY)) = splitByMajority(X, y)
+
+    ((posX, posY), (negX, negY)) = splitByBinaryClass(X, y)
 
     (posSet) = iqrRemoval(posX, posY)
     (negSet) = iqrRemoval(negX, negY)
 
-    return shufflePair(combinePairs(posSet, negSet))
-
-
-def shufflePair(data: XYPair) -> XYPair:
-    X, y = data
-    X = X.assign(y=y)
-    X = X.sample(frac=1)
-    y = X.y
-    X = X.drop(columns=['y'])
-    return (X, y)
+    toKeepX, toKeepY = combinePairs(posSet, negSet)
+    # Keep original order
+    return X.loc[toKeepX.index, :], y.loc[toKeepY.index]

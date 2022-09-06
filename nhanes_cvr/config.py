@@ -64,7 +64,7 @@ models = [
     #  #      # 'model__learning_rate': ['adaptive', 'invscaling']
     #  #  }]
     #  ),
-    (svm.SVC, {
+    (svm.LinearSVC, {
         # 'model__C': stats.expon(scale=100),
         # 'model__kernel': ['rbf', 'linear', 'poly', 'sigmoid'],
         # 'model__class_weight': [None, 'balanced'],
@@ -76,6 +76,7 @@ models = [
     #      "model__leaf_size": np.arange(30, 100, 10)
     #  }
     #  ),
+    (neural_network.MLPClassifier, {})
 ]
 
 

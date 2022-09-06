@@ -6,7 +6,7 @@ import nhanes_cvr.utils as utils
 import seaborn as sns
 import nhanes_cvr.mlProcess as ml
 from imblearn import pipeline, FunctionSampler, over_sampling, combine, under_sampling
-from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval
+from nhanes_cvr.transformers import DropTransformer
 import nhanes_cvr.transformers as trans
 from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
 
@@ -44,8 +44,8 @@ replacements = [
 ]
 
 selections = [
-    lambda: feature_selection.SelectPercentile(),
-    # lambda: preprocessing.FunctionTransformer(lambda x: x)
+    # lambda: feature_selection.SelectPercentile(),
+    lambda: preprocessing.FunctionTransformer()
     # lambda: CorrelationSelection(threshold=0.01)
 ]
 
@@ -82,7 +82,12 @@ samplerRuns = [
     # ("smotetomek", combine.SMOTETomek),
     # ("smote", over_sampling.SMOTE),
     # ("smoteenn", combine.SMOTEENN),
-    ("kmeans_undersampling", lambda: FunctionSampler(func=trans.kMeansUnderSampling)),
+    ("kmeans_undersampling_2", lambda: FunctionSampler(
+        func=trans.kMeansUnderSampling)),
+    ("kmeans_undersampling_3", lambda: FunctionSampler(
+        func=trans.kMeansUnderSampling, kw_args={'k': 3})),
+    ("kmeans_undersampling_4", lambda: FunctionSampler(
+        func=trans.kMeansUnderSampling, kw_args={'k': 4})),
     # ("cluster_centroids", under_sampling.ClusterCentroids)
 ]
 

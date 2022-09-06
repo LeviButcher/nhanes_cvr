@@ -1,4 +1,4 @@
-from nhanes_cvr.transformers import DropTransformer,  iqrRemoval
+from nhanes_cvr.transformers import DropTransformer,  iqrRemoval, kMeansUnderSampling, splitByMajority
 import pandas as pd
 import numpy as np
 
@@ -42,3 +42,26 @@ def test_iqr_removal():
     res = iqrRemoval(data, Y)
 
     assert res[0].shape <= data.shape
+
+
+def test_split_by_majority():
+    X = pd.DataFrame([[1], [2], [3], [4], [5]])
+    Y = pd.Series([0, 0, 1, 1, 1])
+
+    ((majX, majY), (minX, minY)) = splitByMajority(X, Y)
+
+    assert majX.equals(X.loc[2:, :])
+    assert majY.equals(Y.loc[2:])
+
+    assert minX.equals(X.loc[:1, :])
+    assert minY.equals(Y.loc[:1])
+
+
+def test_kMeansUnderSampling():
+    from sklearn import datasets
+    X, Y = datasets.load_iris(return_X_y=True)
+
+    underX, underY = kMeansUnderSampling(X, Y)
+
+    assert underX.shape[0] < X.shape[0]
+    assert underY.shape[0] < Y.shape[0]

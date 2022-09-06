@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, List, Set, Tuple, TypeVar
+from typing import Callable, List, Tuple, TypeVar
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -202,21 +202,22 @@ def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: p
 
 
 def labelHypertensionBasedOnPaper(nhanes_dataset: pd.DataFrame) -> XYPair:
-    oldShape = nhanes_dataset.shape
     nhanes_dataset = filterNhanesDatasetByReleaseYears(
         [9, 10], nhanes_dataset)
-    assert nhanes_dataset.shape != oldShape
     hypertenThreshold = 130
     cols = ["RIAGENDR", "RIDAGEYR", "RIDRETH1",
             "BMXBMI", "DIQ010", "SMQ020", "KIQ022"]
     systolicCols = ["BPXSY1", "BPXSY2", "BPXSY3"]
 
+    # Dropping null columns
     toDrop = nhanes_dataset.loc[:, systolicCols +
                                 ["BMXBMI"]].isna().any(axis=1)
     nhanes_dataset = nhanes_dataset.loc[~toDrop, :]
 
+    # Calc Y
     meanSys = nhanes_dataset.loc[:, systolicCols].mean(axis=1)
     y = meanSys >= hypertenThreshold
+
     X = nhanes_dataset.loc[:, cols]
 
     return (X, y)
@@ -226,40 +227,6 @@ def removeOutliers(z_score, df, columns=None):
     columns = columns if columns is not None else df.columns
     scores = np.abs(stats.zscore(df.loc[:, columns]))
     return (scores < z_score).all(axis=1)
-
-
-def generateDownloadConfig(codebooks: List[str]) -> Set[download.CodebookDownload]:
-    # NOTE: Could use some general way of getting the suffix for each NHANES Year
-    conf = [
-        # (types.ContinuousNHANES.Fourth, "D"),
-        (types.ContinuousNHANES.Fifth, "E"),
-        (types.ContinuousNHANES.Sixth, "F"),
-        (types.ContinuousNHANES.Seventh, "G"),
-        (types.ContinuousNHANES.Eighth, "H"),
-
-        # (types.ContinuousNHANES.Ninth, "I"),
-        # (types.ContinuousNHANES.Tenth, "J"),
-    ]
-
-    # May want some way to exclude some codebooks from adding on the suffix
-    return {download.CodebookDownload(y, *[f"{c}_{suffix}" for c in codebooks])
-            for (y, suffix) in conf}
-
-
-def doesNHANESNeedDownloaded(config: Set[download.CodebookDownload]) -> bool:
-    codebooks = [c for x in config for c in x.codebooks]
-    codebooks.sort()
-    newHash = str(codebooks)
-    f = open("configHash", "r")
-    oldHash = f.read()
-    f.close()
-
-    if newHash != oldHash:
-        f = open("configHash", "w")
-        f.write(newHash)
-        f.close()
-        return True
-    return False
 
 
 def makeDirectoryIfNotExists(directory: str) -> bool:
@@ -274,16 +241,6 @@ def makeDirectoryIfNotExists(directory: str) -> bool:
 
 
 def get_nhanes_dataset() -> pd.DataFrame:
-    # Years used for cvd in "A Data Driven Approach..."
-    nhanesYears = {types.ContinuousNHANES.Fifth,
-                   types.ContinuousNHANES.Sixth,
-                   types.ContinuousNHANES.Seventh,
-                   types.ContinuousNHANES.Eighth}
-    # nhanesYears = types.allContinuousNHANES()
-    # Sixth - https://wwwn.cdc.gov/Nchs/Nhanes/2009-2010/UCOSMO_F.XPT
-
-    # Download NHANES
-    # updateCache = False
     cacheDir = "../nhanse-dl/nhanes_cache"
     years = types.allContinuousNHANES()
     NHANES_DATASET = download.readCacheNhanesYearsWithMortality(
@@ -332,19 +289,31 @@ def get_nhanes_dataset() -> pd.DataFrame:
 #     print(predicted)
 
 def isolatedRun():
-    from sklearn import model_selection, ensemble, metrics
+    from sklearn import model_selection, ensemble, metrics, svm, neural_network
+    from imblearn import pipeline, FunctionSampler
+    from imblearn import metrics as imb_metrics
+    import nhanes_cvr.transformers as trans
     dataset = get_nhanes_dataset()
     X, Y = labelHypertensionBasedOnPaper(dataset)
     (X, Y) = iqrBinaryClassesRemoval(X, Y)
+    print(Y.value_counts())
 
     trainX, testX, trainY, testY = model_selection.train_test_split(
         X, Y, test_size=.2)
 
-    model = ensemble.RandomForestClassifier()
+    model = pipeline.make_pipeline(
+        FunctionSampler(func=trans.kMeansUnderSampling, kw_args={'k': 2}),
+        ensemble.RandomForestClassifier(random_state=42)
+    )
+
+    # model = ensemble.RandomForestClassifier()
+    # model = svm.LinearSVC()
+    # model = neural_network.MLPClassifier()
     model.fit(trainX, trainY)
 
     predicted = model.predict(testX)
+    print(f"Precision: {metrics.precision_score(testY, predicted)}")
     print(f"Recall: {metrics.recall_score(testY, predicted)}")
     print(f"F1: {metrics.f1_score(testY, predicted)}")
-
-    print(X)
+    print(f"GMean: {imb_metrics.geometric_mean_score(testY, predicted)}")
+    print(f"iba: {imb_metrics.make_index_balanced_accuracy()(imb_metrics.geometric_mean_score)(testY, predicted)}")

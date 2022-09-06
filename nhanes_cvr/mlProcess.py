@@ -247,7 +247,7 @@ def labelThenTrainTest(namedLabeller: NamedLabeller, models: CVModelList, scorin
     name, labeller = namedLabeller
     (X, Y) = labeller(data)
 
-    # TODO: Remove Later
+    # TODO: Remove Later - This allows mimicking how the hypertension kMeans paper did their outlier removal
     X, Y = iqrBinaryClassesRemoval(X, Y)
 
     utils.makeDirectoryIfNotExists(saveDir)

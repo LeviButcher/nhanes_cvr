@@ -1,0 +1,19 @@
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
+0,RandomForestClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,FT,FT,SI,FS,0.4177598385469223,0.9059080962800875,0.5718232044198895,0.5767918088737202,{},"[[431 577]
+ [ 43 414]]"
+0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,MMS,FT,SI,FS,0.33167495854063017,0.87527352297593,0.4810583283223091,0.4109215017064846,{},"[[202 806]
+ [ 57 400]]"
+0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,SS,FT,SI,FS,0.3601496725912067,0.8424507658643327,0.5045871559633027,0.48395904436860065,{},"[[324 684]
+ [ 72 385]]"
+0,LinearSVC,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,FT,FT,SI,FS,0.4651711924439197,0.862144420131291,0.6042944785276074,0.6477815699658703,{},"[[555 453]
+ [ 63 394]]"
+0,LinearSVC,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,MMS,FT,SI,FS,0.33447390932420873,0.8555798687089715,0.4809348093480934,0.42389078498293514,{},"[[230 778]
+ [ 66 391]]"
+0,LinearSVC,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,SS,FT,SI,FS,0.3706896551724138,0.8468271334792122,0.5156562291805463,0.5037542662116041,{},"[[351 657]
+ [ 70 387]]"
+0,MLPClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,FT,FT,SI,FS,0.429769392033543,0.8971553610503282,0.5811481218993622,0.5965870307167236,{},"[[464 544]
+ [ 47 410]]"
+0,MLPClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,MMS,FT,SI,FS,0.33812341504649196,0.87527352297593,0.4878048780487805,0.42662116040955633,{},"[[225 783]
+ [ 57 400]]"
+0,MLPClassifier,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,SS,FT,SI,FS,0.37464522232734154,0.8665207877461707,0.523117569352708,0.5071672354948805,{},"[[347 661]
+ [ 61 396]]"

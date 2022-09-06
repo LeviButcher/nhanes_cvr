@@ -1,5 +1,0 @@
-,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
-0,LogisticRegression,MinMaxScaler,SelectPercentile,SimpleImputer,SMOTEENN,LR,MMS,SP,SI,SMOTEENN,0.25970873786407767,0.8916666666666667,0.4022556390977444,0.7270971894443252,{},"[[2961 1220]
- [  52  428]]"
-0,LogisticRegression,StandardScaler,SelectPercentile,SimpleImputer,SMOTEENN,LR,SS,SP,SI,SMOTEENN,0.2644526445264453,0.8958333333333334,0.4083570750237417,0.7326753915468783,{},"[[2985 1196]
- [  50  430]]"

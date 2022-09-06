@@ -1,13 +1,13 @@
 ,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
-0,RandomForestClassifier,FunctionTransformer,SelectPercentile,SimpleImputer,FunctionSampler,RFC,FT,SP,SI,FS,0.4837799717912553,0.75054704595186,0.588336192109777,0.6723549488054608,{},"[[642 366]
- [114 343]]"
-0,RandomForestClassifier,MinMaxScaler,SelectPercentile,SimpleImputer,FunctionSampler,RFC,MMS,SP,SI,FS,0.4837799717912553,0.75054704595186,0.588336192109777,0.6723549488054608,{},"[[642 366]
- [114 343]]"
-0,RandomForestClassifier,StandardScaler,SelectPercentile,SimpleImputer,FunctionSampler,RFC,SS,SP,SI,FS,0.4837799717912553,0.75054704595186,0.588336192109777,0.6723549488054608,{},"[[642 366]
- [114 343]]"
-0,SVC,FunctionTransformer,SelectPercentile,SimpleImputer,FunctionSampler,SVC,FT,SP,SI,FS,0.4912023460410557,0.7330415754923414,0.5882352941176471,0.6798634812286689,{},"[[661 347]
- [122 335]]"
-0,SVC,MinMaxScaler,SelectPercentile,SimpleImputer,FunctionSampler,SVC,MMS,SP,SI,FS,0.4912023460410557,0.7330415754923414,0.5882352941176471,0.6798634812286689,{},"[[661 347]
- [122 335]]"
-0,SVC,StandardScaler,SelectPercentile,SimpleImputer,FunctionSampler,SVC,SS,SP,SI,FS,0.4912023460410557,0.7330415754923414,0.5882352941176471,0.6798634812286689,{},"[[661 347]
- [122 335]]"
+0,RandomForestClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,FT,FT,SI,FS,0.4806701030927835,0.8161925601750547,0.6050283860502839,0.6675767918088737,{},"[[605 403]
+ [ 84 373]]"
+0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,MMS,FT,SI,FS,0.38215859030837,0.7592997811816192,0.5084249084249083,0.5419795221843003,{},"[[447 561]
+ [110 347]]"
+0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,SS,FT,SI,FS,0.3145009416195857,0.7308533916849015,0.4397630019749835,0.41911262798634813,{},"[[280 728]
+ [123 334]]"
+0,SVC,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,SVC,FT,FT,SI,FS,0.5062586926286509,0.7964989059080962,0.6190476190476191,0.6941979522184301,{},"[[653 355]
+ [ 93 364]]"
+0,SVC,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,SVC,MMS,FT,SI,FS,0.38829151732377537,0.7111597374179431,0.5023183925811437,0.5604095563139931,{},"[[496 512]
+ [132 325]]"
+0,SVC,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,SVC,SS,FT,SI,FS,0.30925737538148523,0.6652078774617067,0.42222222222222217,0.43208191126279866,{},"[[329 679]
+ [153 304]]"
