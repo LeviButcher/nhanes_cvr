@@ -1,5 +1,5 @@
 from functools import reduce
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import cluster, metrics,  ensemble
@@ -98,6 +98,21 @@ def splitByMajority(X: pd.DataFrame, y: pd.Series):
     return ((falseX, falseY), (trueX, trueY))
 
 
+def splitByClusterMethod(model, data: XYPair, k: int) -> List[XYPair]:
+    (X, y) = data
+    predictions = model(n_clusters=k).fit_predict(X, y)
+    assignedClusters = pd.Series(predictions, index=X.index)
+    clusterCounts = assignedClusters.value_counts().sort_values(ascending=False)
+
+    clusterSplits = []
+    for i, v in clusterCounts.iteritems():
+        toKeep = (assignedClusters == i)
+        clusterData = (X.loc[toKeep, :], y.loc[toKeep])
+        clusterSplits.append(clusterData)
+
+    return clusterSplits
+
+
 def splitByKMeans(data: XYPair, k: int) -> List[XYPair]:
     # k should equal length of returned list
     (X, y) = data
@@ -135,6 +150,32 @@ def assert_no_na(X: pd.DataFrame):
     assert (not hasNulls)
 
 
+FindBestScore = Callable[[List[float]], int]
+KClusterSplitter = Callable[[XYPair, int], List[XYPair]]
+
+
+def highestScoreIndex(scores: List[float]):
+    return pd.Series(scores).idxmax()
+
+
+def lowestScoreIndex(scores: List[float]):
+    return pd.Series(scores).idxmin()
+
+
+def bestScoreByClosestToMedian(scores: List[float]):
+    series = pd.Series(scores)
+    med = series.median()
+    distances = (series - med).abs()
+    return distances.idxmin()
+
+
+def bestScoreByClosestToMean(scores: List[float]):
+    series = pd.Series(scores)
+    med = series.mean()
+    distances = (series - med).abs()
+    return distances.idxmin()
+
+
 def check_shape(data: XYPair):
     (X, y) = data
     assert X.shape[0] == y.shape[0]
@@ -142,24 +183,23 @@ def check_shape(data: XYPair):
     assert_no_na(X)
 
 
-def kMeansUnderSampling(X, y, k=2):
+def kMeansUnderSampling(X, y, k=2, findBest: FindBestScore = highestScoreIndex, clusterMethod=cluster.KMeans):
     X = transform_to_dataframe(X)
     y = transform_to_series(y)
 
     (majority, minority) = splitByMajority(X, y)
 
-    minorityClusters = splitByKMeans(minority, k)
-    majorityClusters = splitByKMeans(majority, k)
+    minorityClusters = splitByClusterMethod(clusterMethod, minority, k)
+    majorityClusters = splitByClusterMethod(clusterMethod, majority, k)
 
     groups = [(majC, combinePairs(minC, majC))
               for minC in minorityClusters for majC in majorityClusters]
 
     scores = [silhouetteScore(g) for _, g in groups]
 
-    highScore = pd.Series(scores).idxmax()
-
-    # Pick majority cluster with highest silloute score
-    (bestMajority, _) = groups[highScore]
+    # Pick majority cluster with best silloute score
+    bestIdx = findBest(scores)
+    (bestMajority, _) = groups[bestIdx]
 
     (X, y) = combineAllPairs(minorityClusters + [bestMajority])
 

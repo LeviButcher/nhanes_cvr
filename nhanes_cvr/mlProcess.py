@@ -9,53 +9,10 @@ from imblearn.under_sampling import RandomUnderSampler
 from imblearn import pipeline
 from imblearn import FunctionSampler
 from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval, iqrRemoval
-
-# --- TYPES ---
-
-CVSearch = Union[model_selection.GridSearchCV,
-                 model_selection.RandomizedSearchCV]
-CVTrainDF = NewType('CVTrainDF', pd.DataFrame)
-CVTestDF = NewType('CVTestDF', pd.DataFrame)
-Scoring = Dict[str, Any]
-ModelConf = Dict[str, List[Any]]
-Model = Union[linear_model.LogisticRegression,
-              ensemble.RandomForestClassifier, pipeline.Pipeline]
-Scaling = Union[preprocessing.StandardScaler, preprocessing.MinMaxScaler]
-CVModel = Tuple[Model, ModelConf]
-CVModelList = List[CVModel]
-Fold = model_selection.StratifiedKFold
-ModelConst = Callable[[], Model]
-GenModelConf = Tuple[ModelConst, ModelConf]
-GenModelConfList = List[GenModelConf]
-Sampler = RandomUnderSampler
-SamplerConst = Callable[[], Sampler]
-SamplerList = List[Sampler]
-SamplerConstList = List[SamplerConst]
-# Function that Labels Dataset
-Labeller = Callable[[pd.DataFrame], utils.XYPair]
-# Function that selects features/samples to use for training
-Selector = Callable[[utils.XYPair], utils.XYPair]
-OutputSelector = Callable[[str], Selector]
-NamedSelector = Tuple[str, Selector]
-NamedOutputSelector = Tuple[str, OutputSelector]
-NamedSelectors = List[NamedSelector]
-NamedOutputSelectors = List[NamedOutputSelector]
-NamedLabeller = Tuple[str, Labeller]
-SelectorCVTestDF = pd.DataFrame
-Replacement = impute.SimpleImputer
-T = TypeVar('T')
-Const = Callable[[], T]
-ConstList = List[Const[T]]
-Selection = Union[feature_selection.SelectFwe,
-                  feature_selection.VarianceThreshold, feature_selection.SelectPercentile]
-Outlier = iqrBinaryClassesRemoval
-Folding = model_selection.StratifiedKFold
-
-# Pipeline Keys
-# scaling, sampling, model, replacement
-
+from nhanes_cvr.types import *
 
 # --- UTILS ---
+
 
 def generatePipelines(models: List[GenModelConf], scaling: ConstList[Scaling],
                       replacements: ConstList[Replacement], selections: ConstList[Selection]):
@@ -267,42 +224,8 @@ def train_test_idx(testSize: float, dataset: pd.DataFrame) -> Tuple[pd.Series, p
     return (train, test)
 
 
-# def trainModel(X, Y, model: Model):
-#     scores = model_selection.cross_validate(
-#         model, X, Y, cv=10, n_jobs=-1, scoring='f1')
-#     model = model.fit(X, Y)
-#     return model
-
-
 def concatString(xs: List[str]) -> str:
     return functools.reduce(lambda acc, curr: acc + curr, xs, "")
-
-
-# def mortalityAnalysis(dataset: pd.DataFrame, selector: Selector, labellers: List[NamedLabeller], testSize: float) -> None:
-#     dataset = dataset.reset_index(drop=True)
-#     trainIdx, testIdx = train_test_idx(testSize, dataset)
-#     deadViaCV = utils.labelCVRViaCVRDeath(dataset).loc[testIdx]
-#     # Add in Mortality Labels then make bar chart
-#     predictions = []
-#     for n, l in labellers:
-#         xy = l(dataset)
-#         (X, Y) = selector("results/")(xy)  # type: ignore
-#         trainX, trainY = X.loc[trainIdx], Y.loc[trainIdx]
-#         testX, testY = X.loc[testIdx], Y.loc[testIdx]
-#         trainedModel = trainModel(
-#             trainX, trainY, ensemble.RandomForestClassifier())
-#         predictedY = pd.Series(trainedModel.predict(testX))
-#         predictions.append(predictedY)
-
-#     predDF = pd.concat(predictions, axis=1).astype(str)
-#     encodedPred = predDF.apply(concatString, axis=1)
-#     print(encodedPred)
-#     results = pd.concat([encodedPred, deadViaCV], axis=1)
-#     results.columns = ["encoded", "deadViaCV"]
-
-#     sns.histplot(data=results, x='encoded', hue='deadViaCV')
-#     plt.savefig("results/mortalityAnalysis")
-    # plt.close()
 
 
 # --- PLOTTING ---
@@ -366,14 +289,14 @@ def plotValCurveForModels(df: CVTrainDF, foldCount: int, savePath: str):
 
 
 def plotTestResults(results: CVTestDF, scoring: List[str], title: str, savePath: str):
-    g = sns.PairGrid(results, y_vars=['modelAppr'],
-                     x_vars=scoring, hue="scaling")
-    g.map(sns.stripplot)
-    g.add_legend()
+    fig, axes = plt.subplots(1, len(scoring), figsize=(10, 5))
+    for score, ax in zip(scoring, axes):
+        sns.scatterplot(data=results, x="modelAppr",
+                        y=score, hue="scaling", ax=ax, legend=None)
 
-    g.fig.subplots_adjust(top=.9)
-    g.fig.suptitle(title)
-    # plt.title(title)
+    axes[1].set_title(title)
+    plt.tight_layout()
+
     plt.savefig(savePath)
     plt.close()
 

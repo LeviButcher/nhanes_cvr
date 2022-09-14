@@ -1,17 +1,25 @@
 from matplotlib import pyplot as plt
-import pandas as pd
-from sklearn import feature_selection, model_selection, preprocessing, impute
+from sklearn import model_selection, preprocessing, impute
 from sklearn.decomposition import PCA
 import nhanes_cvr.utils as utils
 import seaborn as sns
 import nhanes_cvr.mlProcess as ml
 from imblearn import pipeline, FunctionSampler, over_sampling, combine, under_sampling
-from nhanes_cvr.transformers import DropTransformer
+from nhanes_cvr.transformers import DropTransformer, bestScoreByClosestToMean, bestScoreByClosestToMedian, highestScoreIndex, lowestScoreIndex
 import nhanes_cvr.transformers as trans
 from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
+from sklearn_extra.cluster import KMedoids
+from sklearn.cluster import KMeans
 
-utils.isolatedRun()
-exit()
+
+def generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFuncs):
+    return [(f"{cm.__name__}_undersampling_{k}_{bestScore.__name__}",
+             lambda: FunctionSampler(
+                 func=trans.kMeansUnderSampling,
+                 kw_args={'k': k, 'findBest': bestScore, 'clusterMethod': cm}))
+            for k in kValues
+            for cm in clusterMethods
+            for bestScore in bestScoresFuncs]
 
 
 dataset = utils.get_nhanes_dataset()
@@ -55,6 +63,13 @@ outliers = [
     lambda: preprocessing.FunctionTransformer()
 ]
 
+kValues = [2, 3, 4]
+
+clusterMethods = [KMeans, KMedoids]
+
+bestScoresFunctions = [highestScoreIndex, lowestScoreIndex, bestScoreByClosestToMean,
+                       bestScoreByClosestToMedian]
+
 keep = (dataset.dtypes == 'float64')
 dataset = dataset.loc[:, keep]
 
@@ -78,16 +93,12 @@ for n, f in labelMethods:
 
 samplerRuns = [
     ("no_sampling", lambda: FunctionSampler()),
-    ("random_undersampling", under_sampling.RandomUnderSampler),
+    # ("random_undersampling", under_sampling.RandomUnderSampler),
     # ("smotetomek", combine.SMOTETomek),
     # ("smote", over_sampling.SMOTE),
     # ("smoteenn", combine.SMOTEENN),
-    ("kmeans_undersampling_2", lambda: FunctionSampler(
-        func=trans.kMeansUnderSampling)),
-    ("kmeans_undersampling_3", lambda: FunctionSampler(
-        func=trans.kMeansUnderSampling, kw_args={'k': 3})),
-    ("kmeans_undersampling_4", lambda: FunctionSampler(
-        func=trans.kMeansUnderSampling, kw_args={'k': 4})),
+
+    *generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFunctions)
     # ("cluster_centroids", under_sampling.ClusterCentroids)
 ]
 
