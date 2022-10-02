@@ -91,7 +91,7 @@ for n, sampler in samplerRuns:
     labellerResults.append(pd.concat(res))
 
 columns = ["labeller", "modelAppr", "scalingAppr",
-           "selectionAppr", "precision", "recall", "f1"]
+           "selectionAppr", "accuracy", "precision", "recall", "f1", "auc_roc"]
 
 allCSV = pd.concat(labellerResults, ignore_index=True).loc[:, columns]
 allCSV.to_csv("results/all_results.csv")

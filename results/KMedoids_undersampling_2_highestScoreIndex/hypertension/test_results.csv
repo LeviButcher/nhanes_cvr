@@ -1,19 +1,19 @@
-,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
-0,RandomForestClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,FT,FT,SI,FS,0.34925864909390447,0.9277899343544858,0.5074805505685218,0.43822525597269624,{},"[[218 790]
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,auc_roc,params,cm
+0,RandomForestClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,FT,FT,SI,FS,0.3501238645747316,0.9277899343544858,0.5083932853717027,0.4402730375426621,0.5735179830502588,{},"[[221 787]
  [ 33 424]]"
-0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,MMS,FT,SI,FS,0.3696369636963696,0.9803063457330415,0.5368484122228879,0.47235494880546075,{},"[[244 764]
+0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,MMS,FT,SI,FS,0.3696369636963696,0.9803063457330415,0.5368484122228879,0.47235494880546075,0.6111849188982668,{},"[[244 764]
  [  9 448]]"
-0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,SS,FT,SI,FS,0.29490196078431374,0.8227571115973742,0.4341801385681293,0.3310580204778157,{},"[[109 899]
- [ 81 376]]"
-0,LinearSVC,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,FT,FT,SI,FS,0.353322528363047,0.9540481400437637,0.5156712004730929,0.4409556313993174,{},"[[210 798]
- [ 21 436]]"
-0,LinearSVC,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,MMS,FT,SI,FS,0.3782866836301951,0.975929978118162,0.5452322738386308,0.49215017064846417,{},"[[275 733]
+0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,RFC,SS,FT,SI,FS,0.29574132492113564,0.8205689277899344,0.43478260869565216,0.33447098976109213,0.467328114688618,{},"[[115 893]
+ [ 82 375]]"
+0,LinearSVC,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,FT,FT,SI,FS,0.5483870967741935,0.48358862144420134,0.513953488372093,0.7146757679180887,0.6515165329443229,{},"[[826 182]
+ [236 221]]"
+0,LinearSVC,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,MMS,FT,SI,FS,0.3782866836301951,0.975929978118162,0.5452322738386308,0.49215017064846417,0.6243737192178112,{},"[[275 733]
  [ 11 446]]"
-0,LinearSVC,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,SS,FT,SI,FS,0.29690869877785764,0.9037199124726477,0.4469696969696969,0.3023890784982935,{},"[[ 30 978]
+0,LinearSVC,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,LSVC,SS,FT,SI,FS,0.29690869877785764,0.9037199124726477,0.4469696969696969,0.3023890784982935,0.46674090861727624,{},"[[ 30 978]
  [ 44 413]]"
-0,MLPClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,FT,FT,SI,FS,0.4086687306501548,0.8665207877461707,0.5553997194950911,0.567235494880546,{},"[[435 573]
- [ 61 396]]"
-0,MLPClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,MMS,FT,SI,FS,0.37563025210084033,0.9781181619256017,0.5428051001821494,0.48600682593856653,{},"[[265 743]
+0,MLPClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,FT,FT,SI,FS,0.4064711830131446,0.8796498905908097,0.5560165975103735,0.5617747440273038,0.64865431037477,{},"[[421 587]
+ [ 55 402]]"
+0,MLPClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,MMS,FT,SI,FS,0.3737458193979933,0.9781181619256017,0.5408348457350272,0.48191126279863483,0.6175313031850231,{},"[[259 749]
  [ 10 447]]"
-0,MLPClassifier,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,SS,FT,SI,FS,0.3017982799061767,0.8446389496717724,0.44470046082949305,0.34197952218430033,{},"[[115 893]
- [ 71 386]]"
+0,MLPClassifier,StandardScaler,FunctionTransformer,SimpleImputer,FunctionSampler,MLPC,SS,FT,SI,FS,0.3019017432646593,0.8336980306345733,0.44328097731239097,0.34675767918088735,0.4798450470633184,{},"[[127 881]
+ [ 76 381]]"

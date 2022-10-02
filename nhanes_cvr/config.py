@@ -8,12 +8,13 @@ import nhanes_dl.types as types
 import numpy as np
 
 # CONFIGURATION VARIABLES
-scoringConfig = {"precision": make_scorer(precision_score, average="binary", zero_division=0),
-                 "recall": make_scorer(recall_score, average="binary", zero_division=0),
-                 "f1": make_scorer(f1_score, average="binary", zero_division=0),
-                 "accuracy": make_scorer(accuracy_score)
-                 }
-targetScore = "f1"
+scoringConfig = {
+    "precision": make_scorer(precision_score, average="binary", zero_division=0),
+    "recall": make_scorer(recall_score, average="binary", zero_division=0),
+    "f1": make_scorer(f1_score, average="binary", zero_division=0),
+    "accuracy": make_scorer(accuracy_score),
+    "auc_roc": make_scorer(roc_auc_score)
+}
 maxIter = 200
 randomState = np.random.RandomState(0)
 folds = 10
@@ -85,9 +86,7 @@ models = [(m, {}) for m, _ in models]
 scalers = [
     preprocessing.FunctionTransformer,
     preprocessing.MinMaxScaler,
-    # preprocessing.Normalizer,
     preprocessing.StandardScaler,
-    # preprocessing.RobustScaler
 ]
 
 

@@ -1,19 +1,19 @@
-,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,params,cm
-0,RandomForestClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,RandomUnderSampler,RFC,FT,FT,SI,RUS,0.48604992657856094,0.7242888402625821,0.5817223198594025,0.6750853242320819,{},"[[658 350]
- [126 331]]"
-0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,RFC,MMS,FT,SI,RUS,0.4845201238390093,0.6849015317286652,0.5675430643699002,0.6744027303754266,{},"[[675 333]
- [144 313]]"
-0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,RFC,SS,FT,SI,RUS,0.4783904619970194,0.7024070021881839,0.5691489361702128,0.668259385665529,{},"[[658 350]
- [136 321]]"
-0,LinearSVC,FunctionTransformer,FunctionTransformer,SimpleImputer,RandomUnderSampler,LSVC,FT,FT,SI,RUS,0.48840381991814463,0.7833698030634574,0.6016806722689076,0.6764505119453925,{},"[[633 375]
- [ 99 358]]"
-0,LinearSVC,MinMaxScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,LSVC,MMS,FT,SI,RUS,0.5263157894736842,0.7439824945295405,0.6165004533091568,0.7112627986348122,{},"[[702 306]
- [117 340]]"
-0,LinearSVC,StandardScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,LSVC,SS,FT,SI,RUS,0.5255813953488372,0.7417943107221007,0.6152450090744102,0.710580204778157,{},"[[702 306]
- [118 339]]"
-0,MLPClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,RandomUnderSampler,MLPC,FT,FT,SI,RUS,0.4973474801061008,0.8205689277899344,0.6193228736581338,0.6853242320819113,{},"[[629 379]
- [ 82 375]]"
-0,MLPClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,MLPC,MMS,FT,SI,RUS,0.5046979865771812,0.8227571115973742,0.6256239600665557,0.6928327645051194,{},"[[639 369]
- [ 81 376]]"
-0,MLPClassifier,StandardScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,MLPC,SS,FT,SI,RUS,0.5061898211829436,0.8052516411378556,0.6216216216216217,0.6941979522184301,{},"[[649 359]
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,auc_roc,params,cm
+0,RandomForestClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,RandomUnderSampler,RFC,FT,FT,SI,RUS,0.47129909365558914,0.6827133479212254,0.5576407506702413,0.6621160409556314,0.6677455628495016,{},"[[658 350]
+ [145 312]]"
+0,RandomForestClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,RFC,MMS,FT,SI,RUS,0.4785276073619632,0.6827133479212254,0.5626690712353472,0.6689419795221843,0.6727058803098189,{},"[[668 340]
+ [145 312]]"
+0,RandomForestClassifier,StandardScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,RFC,SS,FT,SI,RUS,0.47041420118343197,0.6958424507658644,0.561341571050309,0.6607508532423209,0.670341860303567,{},"[[650 358]
+ [139 318]]"
+0,LinearSVC,FunctionTransformer,FunctionTransformer,SimpleImputer,RandomUnderSampler,LSVC,FT,FT,SI,RUS,1.0,0.002188183807439825,0.004366812227074236,0.6887372013651877,0.5010940919037199,{},"[[1008    0]
+ [ 456    1]]"
+0,LinearSVC,MinMaxScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,LSVC,MMS,FT,SI,RUS,0.528158295281583,0.7592997811816192,0.6229802513464991,0.7133105802047781,0.7258800493209683,{},"[[698 310]
+ [110 347]]"
+0,LinearSVC,StandardScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,LSVC,SS,FT,SI,RUS,0.5285053929121726,0.75054704595186,0.620253164556962,0.7133105802047781,0.7234878086902157,{},"[[702 306]
+ [114 343]]"
+0,MLPClassifier,FunctionTransformer,FunctionTransformer,SimpleImputer,RandomUnderSampler,MLPC,FT,FT,SI,RUS,0.4796044499381953,0.849015317286652,0.612954186413902,0.6655290102389079,0.7156782935639608,{},"[[587 421]
+ [ 69 388]]"
+0,MLPClassifier,MinMaxScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,MLPC,MMS,FT,SI,RUS,0.4878980891719745,0.838074398249453,0.6167471819645732,0.6750853242320819,0.7196324372199645,{},"[[606 402]
+ [ 74 383]]"
+0,MLPClassifier,StandardScaler,FunctionTransformer,SimpleImputer,RandomUnderSampler,MLPC,SS,FT,SI,RUS,0.5027322404371585,0.8052516411378556,0.6190075693860387,0.6907849829351536,0.7220702650133722,{},"[[644 364]
  [ 89 368]]"
