@@ -3,8 +3,6 @@ from typing import Callable, List, Tuple
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import cluster, metrics,  ensemble
-from imblearn.under_sampling.base import BaseUnderSampler
-
 from nhanes_cvr.types import XYPair
 
 

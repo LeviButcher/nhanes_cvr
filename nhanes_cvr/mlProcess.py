@@ -1,14 +1,12 @@
 import functools
 import pandas as pd
-from sklearn import feature_selection, linear_model, model_selection, preprocessing, ensemble, metrics, impute
-from typing import TypeVar, Union, List, NewType, Dict, Any, Tuple, Callable
+from sklearn import model_selection, metrics
+from typing import List, Tuple
 import matplotlib.pyplot as plt
 import seaborn as sns
 from nhanes_cvr import utils
-from imblearn.under_sampling import RandomUnderSampler
 from imblearn import pipeline
-from imblearn import FunctionSampler
-from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval, iqrRemoval
+from nhanes_cvr.transformers import DropTransformer, iqrBinaryClassesRemoval
 from nhanes_cvr.types import *
 
 # --- UTILS ---
@@ -64,10 +62,6 @@ def generatePipelinesWithSamplingAndOutlier(models: List[GenModelConf], scaling:
         for out in outliers]
 
 
-def getClassName(x):
-    return x.__class__.__name__
-
-
 def onlyUpperCase(xs: str) -> str:
     return "".join([x for x in xs if x.isupper()])
 
@@ -101,7 +95,7 @@ def buildDataFrameOfResults(results: List[CVSearch]) -> CVTrainDF:
 
 
 def getPipelineStepClass(model: CVSearch, step: str):
-    return getClassName(model.estimator.named_steps.get(step))
+    return utils.getClassName(model.estimator.named_steps.get(step))
 
 
 def getPipelineStepClassAppr(model: CVSearch, step: str):
@@ -200,7 +194,7 @@ def randomForestFeatureImportance(models: List[CVSearch], features: List[str], s
 
 
 def labelThenTrainTest(namedLabeller: NamedLabeller, models: CVModelList, scoring: Scoring,
-                       target: str, testSize: float, cv: Fold, data: pd.DataFrame, saveDir: str):
+                       target: str, testSize: float, cv: Fold, data: pd.DataFrame, saveDir: str) -> CVTestDF:
     name, labeller = namedLabeller
     (X, Y) = labeller(data)
 
@@ -357,38 +351,3 @@ def plotFeatureRelationships(X: pd.DataFrame, Y: pd.Series, savePath: str):
     sns.pairplot(data, diag_kind='hist', hue='Y', corner=True)
     plt.savefig(savePath)
     plt.close()
-
-# def test():
-#     X, Y = datasets.make_classification()
-
-#     models = [
-#         (linear_model.LogisticRegression,
-#          {
-#              'model__C': [.5, 1],
-#              'model__solver': ['lbfgs', 'liblinear']
-#          }
-#          ),
-#         (ensemble.RandomForestClassifier,
-#          {
-#              'model__n_estimators': [100, 50],
-#              'model__criterion': ['gini', 'entropy']
-#          }
-#          )]
-
-#     scalers = [
-#         preprocessing.MinMaxScaler,
-#         preprocessing.Normalizer,
-#         preprocessing.StandardScaler,
-#         preprocessing.RobustScaler
-#     ]
-
-#     scoringConfig = {"precision": metrics.make_scorer(metrics.precision_score, average="binary", zero_division=0),
-#                      "recall": metrics.make_scorer(metrics.recall_score, average="binary", zero_division=0),
-#                      "f1": metrics.make_scorer(metrics.f1_score, average="binary", zero_division=0),
-#                      "accuracy": metrics.make_scorer(metrics.accuracy_score)
-#                      }
-
-#     pipes = generatePipelines(models, scalers)
-#     fold = model_selection.StratifiedKFold(n_splits=10)
-#     trainTestProcess(pipes, scoringConfig, "f1",
-#                      0.2, fold, X, Y, "../results")

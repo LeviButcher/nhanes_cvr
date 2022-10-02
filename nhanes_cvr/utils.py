@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Callable, List, Tuple, TypeVar
+from imblearn import FunctionSampler
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -7,8 +8,7 @@ from nhanes_dl import download, types
 from typing import List
 import pandas as pd
 from toolz import curry
-
-
+import nhanes_cvr.transformers as trans
 from nhanes_cvr.transformers import iqrBinaryClassesRemoval
 from nhanes_cvr.types import XYPair
 
@@ -18,10 +18,6 @@ def getClassName(x) -> str:
         return "None"
 
     return x.__class__.__name__
-
-
-def toUpperCase(l):
-    return list(map(lambda l: l.upper(), l))
 
 
 def yearToMonths(x): return 12 * x
@@ -317,3 +313,13 @@ def isolatedRun():
     print(f"F1: {metrics.f1_score(testY, predicted)}")
     print(f"GMean: {imb_metrics.geometric_mean_score(testY, predicted)}")
     print(f"iba: {imb_metrics.make_index_balanced_accuracy()(imb_metrics.geometric_mean_score)(testY, predicted)}")
+
+
+def generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFuncs):
+    return [(f"{cm.__name__}_undersampling_{k}_{bestScore.__name__}",
+            lambda: FunctionSampler(
+                func=trans.kMeansUnderSampling,
+                kw_args={'k': k, 'findBest': bestScore, 'clusterMethod': cm}))
+            for k in kValues
+            for cm in clusterMethods
+            for bestScore in bestScoresFuncs]

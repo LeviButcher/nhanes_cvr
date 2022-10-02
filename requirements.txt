@@ -8,3 +8,4 @@ seaborn
 toolz
 imbalanced-learn
 scikit-learn-extra
+df2img

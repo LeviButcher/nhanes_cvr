@@ -4,30 +4,17 @@ from sklearn.decomposition import PCA
 import nhanes_cvr.utils as utils
 import seaborn as sns
 import nhanes_cvr.mlProcess as ml
-from imblearn import pipeline, FunctionSampler, over_sampling, combine, under_sampling
+from imblearn import pipeline, FunctionSampler, under_sampling
 from nhanes_cvr.transformers import DropTransformer, bestScoreByClosestToMean, bestScoreByClosestToMedian, highestScoreIndex, lowestScoreIndex
-import nhanes_cvr.transformers as trans
 from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
 from sklearn_extra.cluster import KMedoids
 from sklearn.cluster import KMeans
-
-
-def generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFuncs):
-    return [(f"{cm.__name__}_undersampling_{k}_{bestScore.__name__}",
-             lambda: FunctionSampler(
-                 func=trans.kMeansUnderSampling,
-                 kw_args={'k': k, 'findBest': bestScore, 'clusterMethod': cm}))
-            for k in kValues
-            for cm in clusterMethods
-            for bestScore in bestScoresFuncs]
-
-
-dataset = utils.get_nhanes_dataset()
-
+import pandas as pd
 
 # Matplotlib/Seaborn Theming
 sns.set_theme(style='darkgrid', palette='pastel')
 
+dataset = utils.get_nhanes_dataset()
 dataset.dtypes.to_csv("results/feature_types.csv")
 
 
@@ -70,20 +57,8 @@ clusterMethods = [KMeans, KMedoids]
 bestScoresFunctions = [highestScoreIndex, lowestScoreIndex, bestScoreByClosestToMean,
                        bestScoreByClosestToMedian]
 
-keep = (dataset.dtypes == 'float64')
-dataset = dataset.loc[:, keep]
-
-pcaPipe = pipeline.make_pipeline(DropTransformer(threshold=0.5),
-                                 impute.SimpleImputer(),
-                                 preprocessing.StandardScaler(),
-                                 PCA(n_components=2))
-
-for n, f in labelMethods:
-    X, Y = f(dataset)
-    X = pcaPipe.fit_transform(X, Y)
-    plt.scatter(X[:, 0], X[:, 1], c=Y)
-    plt.savefig(f"results/{n}_pca.png")
-    plt.close()
+# keep = (dataset.dtypes == 'float64')
+# dataset = dataset.loc[:, keep]
 
 for n, f in labelMethods:
     X, Y = f(dataset)
@@ -93,19 +68,44 @@ for n, f in labelMethods:
 
 samplerRuns = [
     ("no_sampling", lambda: FunctionSampler()),
-    # ("random_undersampling", under_sampling.RandomUnderSampler),
+    ("random_undersampling", under_sampling.RandomUnderSampler),
     # ("smotetomek", combine.SMOTETomek),
     # ("smote", over_sampling.SMOTE),
     # ("smoteenn", combine.SMOTEENN),
 
-    *generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFunctions)
+    *utils.generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFunctions)
     # ("cluster_centroids", under_sampling.ClusterCentroids)
 ]
+
+labellerResults = []
 
 for n, sampler in samplerRuns:
     print(n)
     cvModels = ml.generatePipelinesWithSampling(
         models, scalers, replacements, [sampler], selections)  # type: ignore
-    for nl in labelMethods:
-        ml.labelThenTrainTest(nl, cvModels, scoringConfig, target,  # type: ignore
-                              testSize, fold, dataset, f"results/{n}")
+
+    res = [ml.labelThenTrainTest(nl, cvModels, scoringConfig, target, testSize, fold, dataset, f"results/{n}")
+           .assign(labeller=n)
+           for nl in labelMethods]
+
+    labellerResults.append(pd.concat(res))
+
+columns = ["labeller", "modelAppr", "scalingAppr",
+           "selectionAppr", "precision", "recall", "f1"]
+
+allCSV = pd.concat(labellerResults, ignore_index=True).loc[:, columns]
+allCSV.to_csv("results/all_results.csv")
+allCSV.to_html("results/all_results.html")
+
+bestResults = allCSV.groupby(by="labeller")["f1"].idxmax()
+
+bestCSV = allCSV.loc[bestResults, :]
+bestCSV.to_csv("results/best_results.csv")
+bestCSV.to_html("results/best_results.html")
+
+bestByModelResults = allCSV.groupby(
+    by=["labeller", "modelAppr"])["f1"].idxmax()
+
+bestModelCSV = allCSV.loc[bestByModelResults, :]
+bestModelCSV.to_csv("results/best_model_results.csv")
+bestModelCSV.to_html("results/best_model_results.html")
