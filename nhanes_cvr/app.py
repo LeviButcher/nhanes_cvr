@@ -4,7 +4,7 @@ from sklearn.decomposition import PCA
 import nhanes_cvr.utils as utils
 import seaborn as sns
 import nhanes_cvr.mlProcess as ml
-from imblearn import pipeline, FunctionSampler, under_sampling
+from imblearn import pipeline, FunctionSampler, under_sampling, over_sampling, combine
 from nhanes_cvr.transformers import DropTransformer, bestScoreByClosestToMean, bestScoreByClosestToMedian, highestScoreIndex, lowestScoreIndex
 from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
 from sklearn_extra.cluster import KMedoids
@@ -69,12 +69,11 @@ for n, f in labelMethods:
 samplerRuns = [
     ("no_sampling", lambda: FunctionSampler()),
     ("random_undersampling", under_sampling.RandomUnderSampler),
-    # ("smotetomek", combine.SMOTETomek),
-    # ("smote", over_sampling.SMOTE),
-    # ("smoteenn", combine.SMOTEENN),
-
+    ("cluster_centroids", under_sampling.ClusterCentroids),
+    ("smotetomek", combine.SMOTETomek),
+    ("smote", over_sampling.SMOTE),
+    ("smoteenn", combine.SMOTEENN),
     *utils.generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFunctions)
-    # ("cluster_centroids", under_sampling.ClusterCentroids)
 ]
 
 labellerResults = []
