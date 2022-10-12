@@ -8,10 +8,18 @@ import pandas as pd
 XSet = pd.DataFrame
 YSet = pd.Series
 XYPair = Tuple[XSet, YSet]
+
 CVSearch = Union[model_selection.GridSearchCV,
                  model_selection.RandomizedSearchCV]
 CVTrainDF = NewType('CVTrainDF', pd.DataFrame)
 CVTestDF = NewType('CVTestDF', pd.DataFrame)
+CVRes = Tuple[CVTrainDF, CVTestDF]
+LabellerTrainDF = NewType('LabellerTrainDF', pd.DataFrame)
+LabellerTestDF = NewType('LabellerTestDF', pd.DataFrame)
+LabellerRes = CVRes = Tuple[LabellerTrainDF, LabellerTestDF]
+
+
+# Config Typing
 Scoring = Dict[str, Any]
 ModelConf = Dict[str, List[Any]]
 Model = Union[linear_model.LogisticRegression,
@@ -29,6 +37,8 @@ SamplerList = List[Sampler]
 SamplerConstList = List[SamplerConst]
 # Function that Labels Dataset
 Labeller = Callable[[pd.DataFrame], XYPair]
+NamedLabeller = Tuple[str, Labeller]
+NamedLabellerList = List[NamedLabeller]
 # Function that selects features/samples to use for training
 Selector = Callable[[XYPair], XYPair]
 OutputSelector = Callable[[str], Selector]
@@ -46,4 +56,3 @@ Selection = Union[feature_selection.SelectFwe,
                   feature_selection.VarianceThreshold, feature_selection.SelectPercentile]
 
 Folding = model_selection.StratifiedKFold
-Outlier = Any

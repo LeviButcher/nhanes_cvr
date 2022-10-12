@@ -1,4 +1,5 @@
 from enum import Enum
+from functools import reduce
 from typing import Callable, List, Tuple, TypeVar
 from imblearn import FunctionSampler
 import numpy as np
@@ -10,14 +11,24 @@ import pandas as pd
 from toolz import curry
 import nhanes_cvr.transformers as trans
 from nhanes_cvr.transformers import iqrBinaryClassesRemoval
-from nhanes_cvr.types import XYPair
+from nhanes_cvr.types import CVSearch, CVTrainDF, XYPair
 
 
 def getClassName(x) -> str:
     if x is None:
         return "None"
 
-    return x.__class__.__name__
+    name = x.__class__.__name__
+
+    if (name == "Pipeline"):
+        stepClasses = [getClassName(y) for y in x.named_steps.values()]
+        return '_'.join(stepClasses)
+
+    return name
+
+
+def onlyUpperCase(xs: str) -> str:
+    return "".join([x for x in xs if x.isupper()])
 
 
 def yearToMonths(x): return 12 * x
@@ -60,9 +71,11 @@ def toCauseOfDeath(x):
     return LeadingCauseOfDeath(int(x))
 
 
-def nhanesToQuestionnaireSet(nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
+def labelQuestionnaireSet(nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
     X = nhanes_dataset.drop(columns=["MCQ160F", "MCQ160C", "MCQ160B", "MCQ160E"]) \
-        .drop(columns=download.getMortalityColumns())
+        .drop(columns=download.getMortalityColumns()) \
+        .select_dtypes(exclude=['object'])
+
     Y = labelViaQuestionnaire(nhanes_dataset)
     return (X, Y)
 
@@ -216,7 +229,7 @@ def labelHypertensionBasedOnPaper(nhanes_dataset: pd.DataFrame) -> XYPair:
 
     X = nhanes_dataset.loc[:, cols]
 
-    return (X, y)
+    return iqrBinaryClassesRemoval(X, y)
 
 
 def removeOutliers(z_score, df, columns=None):
@@ -264,57 +277,6 @@ def get_nhanes_dataset() -> pd.DataFrame:
     return dataset
 
 
-# def test():
-#     X, y = datasets.load_breast_cancer(return_X_y=True)
-#     X = pd.DataFrame(X)
-#     y = pd.Series(y)
-
-#     pipe = pipeline.make_pipeline(
-#         DropTransformer(threshold=0.5),
-#         impute.SimpleImputer(strategy='mean'),
-#         preprocessing.StandardScaler(),
-#         CorrelationSelection(threshold=0.01),
-#         FunctionSampler(func=trans.kMeansUnderSampling),
-#         # FunctionSampler(func=trans.outlier_rejection),
-#         RandomForestClassifier()
-#     )
-
-#     predicted = pipe.fit(X, y).predict(X)
-#     # trans = pipe.fit_resample(X, y)
-#     # print(trans)
-#     print(predicted)
-
-def isolatedRun():
-    from sklearn import model_selection, ensemble, metrics, svm, neural_network
-    from imblearn import pipeline, FunctionSampler
-    from imblearn import metrics as imb_metrics
-    import nhanes_cvr.transformers as trans
-    dataset = get_nhanes_dataset()
-    X, Y = labelHypertensionBasedOnPaper(dataset)
-    (X, Y) = iqrBinaryClassesRemoval(X, Y)
-    print(Y.value_counts())
-
-    trainX, testX, trainY, testY = model_selection.train_test_split(
-        X, Y, test_size=.2)
-
-    model = pipeline.make_pipeline(
-        FunctionSampler(func=trans.kMeansUnderSampling, kw_args={'k': 2}),
-        ensemble.RandomForestClassifier(random_state=42)
-    )
-
-    # model = ensemble.RandomForestClassifier()
-    # model = svm.LinearSVC()
-    # model = neural_network.MLPClassifier()
-    model.fit(trainX, trainY)
-
-    predicted = model.predict(testX)
-    print(f"Precision: {metrics.precision_score(testY, predicted)}")
-    print(f"Recall: {metrics.recall_score(testY, predicted)}")
-    print(f"F1: {metrics.f1_score(testY, predicted)}")
-    print(f"GMean: {imb_metrics.geometric_mean_score(testY, predicted)}")
-    print(f"iba: {imb_metrics.make_index_balanced_accuracy()(imb_metrics.geometric_mean_score)(testY, predicted)}")
-
-
 def generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFuncs):
     return [(f"{cm.__name__}_undersampling_{k}_{bestScore.__name__}",
             lambda: FunctionSampler(
@@ -323,3 +285,42 @@ def generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFuncs):
             for k in kValues
             for cm in clusterMethods
             for bestScore in bestScoresFuncs]
+
+
+def pipelineSteps() -> List[str]:
+    return ['model', 'scaling', 'selection', 'replacement', 'sampling']
+
+
+def getPipelineClasses(model: CVSearch) -> List[str]:
+    return [getPipelineStepClass(model, s) for s in pipelineSteps()]
+
+
+def getPipelineClassesAppr(model: CVSearch) -> List[str]:
+    return [onlyUpperCase(s) for s in getPipelineClasses(model)]
+
+
+def getPipelineStepClass(model: CVSearch, step: str):
+    return getClassName(model.estimator.named_steps.get(step))
+
+
+def getPipelineStepClassAppr(model: CVSearch, step: str):
+    return onlyUpperCase(getPipelineStepClass(model, step))
+
+
+def buildDataFrameOfResults(results: List[CVSearch]) -> CVTrainDF:
+    res = [buildDataFrameOfResult(res) for res in results]
+    return CVTrainDF(pd.concat(res, ignore_index=True))
+
+
+def buildDataFrameOfResult(res: CVSearch) -> CVTrainDF:
+    res = pd.DataFrame(res.cv_results_) \
+        .assign(model=getPipelineStepClass(res, 'model'),
+                scaling=getPipelineStepClass(res, 'scaling'),
+                sampling=getPipelineStepClass(res, 'sampling'),
+                selection=getPipelineStepClass(res, 'selection'),
+                replacement=getPipelineStepClass(res, 'replacement'))
+    return CVTrainDF(res)
+
+
+def concatString(xs: List[str]) -> str:
+    return reduce(lambda acc, curr: acc + curr, xs, "")

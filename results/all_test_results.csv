@@ -1,0 +1,13 @@
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,auc_roc,params,cm,labeller
+0,FunctionSampler_LogisticRegression,FunctionTransformer,FunctionTransformer,SimpleImputer,None,FSLR,FT,FT,SI,N,0.5163584637268848,0.7943107221006565,0.6258620689655172,0.7037542662116041,0.7285045673995346,"{'model__sampler__kw_args': {'k': 3, 'findBest': <function bestScoreByClosestToMean at 0x7f7852ffc0d0>, 'clusterMethod': <class 'sklearn.cluster._kmeans.KMeans'>}}","[[668 340]
+ [ 94 363]]",hypertension
+1,FunctionSampler_LogisticRegression,MinMaxScaler,FunctionTransformer,SimpleImputer,None,FSLR,MMS,FT,SI,N,0.4749082007343941,0.849015317286652,0.609105180533752,0.6600682593856655,0.7117100395957069,"{'model__sampler__kw_args': {'k': 2, 'findBest': <function highestScoreIndex at 0x7f7852fe7eb0>, 'clusterMethod': <class 'sklearn_extra.cluster._k_medoids.KMedoids'>}}","[[579 429]
+ [ 69 388]]",hypertension
+2,FunctionSampler_LogisticRegression,StandardScaler,FunctionTransformer,SimpleImputer,None,FSLR,SS,FT,SI,N,0.4629156010230179,0.7921225382932167,0.5843422114608556,0.6484641638225256,0.687727935813275,"{'model__sampler__kw_args': {'k': 2, 'findBest': <function highestScoreIndex at 0x7f7852fe7eb0>, 'clusterMethod': <class 'sklearn_extra.cluster._k_medoids.KMedoids'>}}","[[588 420]
+ [ 95 362]]",hypertension
+3,FunctionSampler_LinearSVC,FunctionTransformer,FunctionTransformer,SimpleImputer,None,FSLSVC,FT,FT,SI,N,0.3788546255506608,0.9409190371991247,0.5402010050251256,0.5003412969283276,0.6207571376471814,"{'model__sampler__kw_args': {'k': 3, 'findBest': <function highestScoreIndex at 0x7f7852fe7eb0>, 'clusterMethod': <class 'sklearn.cluster._kmeans.KMeans'>}}","[[303 705]
+ [ 27 430]]",hypertension
+4,FunctionSampler_LinearSVC,MinMaxScaler,FunctionTransformer,SimpleImputer,None,FSLSVC,MMS,FT,SI,N,0.47549019607843135,0.849015317286652,0.6095836606441477,0.6607508532423209,0.7122060713417386,"{'model__sampler__kw_args': {'k': 2, 'findBest': <function highestScoreIndex at 0x7f7852fe7eb0>, 'clusterMethod': <class 'sklearn_extra.cluster._k_medoids.KMedoids'>}}","[[580 428]
+ [ 69 388]]",hypertension
+5,FunctionSampler_LinearSVC,StandardScaler,FunctionTransformer,SimpleImputer,None,FSLSVC,SS,FT,SI,N,0.4682230869001297,0.7899343544857768,0.5879478827361563,0.6546075085324232,0.6915941613698726,"{'model__sampler__kw_args': {'k': 2, 'findBest': <function highestScoreIndex at 0x7f7852fe7eb0>, 'clusterMethod': <class 'sklearn_extra.cluster._k_medoids.KMedoids'>}}","[[598 410]
+ [ 96 361]]",hypertension

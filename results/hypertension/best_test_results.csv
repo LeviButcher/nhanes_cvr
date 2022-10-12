@@ -1,0 +1,5 @@
+,model,scaling,selection,replacement,sampling,modelAppr,scalingAppr,selectionAppr,replacementAppr,samplingAppr,precision,recall,f1,accuracy,auc_roc,params,cm
+4,FunctionSampler_LinearSVC,MinMaxScaler,FunctionTransformer,SimpleImputer,None,FSLSVC,MMS,FT,SI,N,0.47549019607843135,0.849015317286652,0.6095836606441477,0.6607508532423209,0.7122060713417386,"{'model__sampler__kw_args': {'k': 2, 'findBest': <function highestScoreIndex at 0x7f7852fe7eb0>, 'clusterMethod': <class 'sklearn_extra.cluster._k_medoids.KMedoids'>}}","[[580 428]
+ [ 69 388]]"
+0,FunctionSampler_LogisticRegression,FunctionTransformer,FunctionTransformer,SimpleImputer,None,FSLR,FT,FT,SI,N,0.5163584637268848,0.7943107221006565,0.6258620689655172,0.7037542662116041,0.7285045673995346,"{'model__sampler__kw_args': {'k': 3, 'findBest': <function bestScoreByClosestToMean at 0x7f7852ffc0d0>, 'clusterMethod': <class 'sklearn.cluster._kmeans.KMeans'>}}","[[668 340]
+ [ 94 363]]"

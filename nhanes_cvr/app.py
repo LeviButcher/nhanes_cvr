@@ -1,15 +1,8 @@
-from matplotlib import pyplot as plt
 from sklearn import model_selection, preprocessing, impute
-from sklearn.decomposition import PCA
 import nhanes_cvr.utils as utils
 import seaborn as sns
 import nhanes_cvr.mlProcess as ml
-from imblearn import pipeline, FunctionSampler, under_sampling, over_sampling, combine
-from nhanes_cvr.transformers import DropTransformer, bestScoreByClosestToMean, bestScoreByClosestToMedian, highestScoreIndex, lowestScoreIndex
-from nhanes_cvr.config import testSize, scoringConfig, models, scalers, randomState
-from sklearn_extra.cluster import KMedoids
-from sklearn.cluster import KMeans
-import pandas as pd
+from nhanes_cvr.config import testSize, scoringConfig, randomState, allModels
 
 # Matplotlib/Seaborn Theming
 sns.set_theme(style='darkgrid', palette='pastel')
@@ -19,7 +12,7 @@ dataset.dtypes.to_csv("results/feature_types.csv")
 
 
 labelMethods = [
-    # ("questionnaire", utils.nhanesToQuestionnaireSet),
+    # ("questionnaire", utils.labelQuestionnaireSet),
     ("hypertension", utils.labelHypertensionBasedOnPaper)
     # ("lab_thresh", utils.labelCVRBasedOnLabMetrics(2)),
     # ("cardiovascular_codebook", utils.labelCVRBasedOnCardiovascularCodebook),
@@ -44,21 +37,12 @@ selections = [
     # lambda: CorrelationSelection(threshold=0.01)
 ]
 
-outliers = [
-    # lambda: FunctionSampler(func=iqrBinaryClassesRemoval)
-    # Use when Doing iqrBinaryClassesRemoval on all dataset
-    lambda: preprocessing.FunctionTransformer()
+scaling = [
+    preprocessing.FunctionTransformer,
+    preprocessing.MinMaxScaler,
+    preprocessing.StandardScaler,
 ]
 
-kValues = [2, 3, 4]
-
-clusterMethods = [KMeans, KMedoids]
-
-bestScoresFunctions = [highestScoreIndex, lowestScoreIndex, bestScoreByClosestToMean,
-                       bestScoreByClosestToMedian]
-
-# keep = (dataset.dtypes == 'float64')
-# dataset = dataset.loc[:, keep]
 
 for n, f in labelMethods:
     X, Y = f(dataset)
@@ -66,45 +50,13 @@ for n, f in labelMethods:
     Y.value_counts(normalize=True).to_csv(f"results/{n}_label_info.csv")
 
 
-samplerRuns = [
-    ("no_sampling", lambda: FunctionSampler()),
-    ("random_undersampling", under_sampling.RandomUnderSampler),
-    ("cluster_centroids", under_sampling.ClusterCentroids),
-    ("smotetomek", combine.SMOTETomek),
-    ("smote", over_sampling.SMOTE),
-    ("smoteenn", combine.SMOTEENN),
-    *utils.generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFunctions)
-]
+pipelines = ml.generatePipelines(allModels, scaling, replacements, selections)
 
-labellerResults = []
 
-for n, sampler in samplerRuns:
-    print(n)
-    cvModels = ml.generatePipelinesWithSampling(
-        models, scalers, replacements, [sampler], selections)  # type: ignore
+(allTrain, allTest) = ml.runAllLabellers(labelMethods, pipelines, scoringConfig, target,
+                                         testSize, fold, dataset, "results")
 
-    res = [ml.labelThenTrainTest(nl, cvModels, scoringConfig, target, testSize, fold, dataset, f"results/{n}")
-           .assign(labeller=n)
-           for nl in labelMethods]
+allTrain.to_csv("results/all_train_results.csv")
+allTest.to_csv("results/all_test_results.csv")
 
-    labellerResults.append(pd.concat(res))
-
-columns = ["labeller", "modelAppr", "scalingAppr",
-           "selectionAppr", "accuracy", "precision", "recall", "f1", "auc_roc"]
-
-allCSV = pd.concat(labellerResults, ignore_index=True).loc[:, columns]
-allCSV.to_csv("results/all_results.csv")
-allCSV.to_html("results/all_results.html")
-
-bestResults = allCSV.groupby(by="labeller")["f1"].idxmax()
-
-bestCSV = allCSV.loc[bestResults, :]
-bestCSV.to_csv("results/best_results.csv")
-bestCSV.to_html("results/best_results.html")
-
-bestByModelResults = allCSV.groupby(
-    by=["labeller", "modelAppr"])["f1"].idxmax()
-
-bestModelCSV = allCSV.loc[bestByModelResults, :]
-bestModelCSV.to_csv("results/best_model_results.csv")
-bestModelCSV.to_html("results/best_model_results.html")
+print(allTrain)
