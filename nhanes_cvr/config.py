@@ -1,7 +1,6 @@
-import imblearn
 from sklearn import ensemble, linear_model, neural_network, svm, metrics, neighbors, cluster
 import numpy as np
-from imblearn import FunctionSampler
+from imblearn import FunctionSampler, pipeline, under_sampling, over_sampling, combine
 from nhanes_cvr import transformers as tf
 from sklearn_extra.cluster import KMedoids
 
@@ -36,29 +35,50 @@ bestScoresFunctions = [tf.highestScoreIndex,
 quickAllConfs = [{'k': k, 'findBest': s, 'clusterMethod': m}
                  for k in kValues for m in clusterMethods for s in bestScoresFunctions]
 
-# Going to want to seperate each sampler by type to easily combine later
-samplers = [
-    # (imblearn.under_sampling.RandomUnderSampler, {}),
-    # (imblearn.under_sampling.ClusterCentroids, {}),
-    # (imblearn.over_sampling.RandomOverSampler, {}),
-    # (imblearn.over_sampling.SMOTE, {}),
-    # (imblearn.combine.SMOTEENN, {}),
-    # (imblearn.combine.SMOTETomek, {}),
-    # TODO: Make it to where this can keep the KUS name for the sampler
+# TODO:
+# [] 1. Combine Samplers together into it's own pipeline
+# [] 2. Make better display of test scores plot
+# [] 3. Try other sampling methods (questionarre seemed to fail?)
+# [] 4. Generate all results
+# [] 5. Make it to where this can keep the KUS name for the sampler
+
+
+underSamples = [
+    (under_sampling.RandomUnderSampler, {}),
+    (under_sampling.ClusterCentroids, {}),
     (lambda: FunctionSampler(func=tf.kMeansUnderSampling), {
         'sampler__kw_args': quickAllConfs
-    })
+    }),
 ]
+
+overSamplers = [
+    (over_sampling.RandomOverSampler, {}),
+    (over_sampling.SMOTE, {}),
+]
+
+combineSamplers = [
+    (combine.SMOTEENN, {}),
+    (combine.SMOTETomek, {}),
+]
+
+# multiStepSamplers = [
+#     (lambda: [('under', FunctionSampler(func=tf.kMeansUnderSampling)),
+#               ('over', over_sampling.RandomOverSampler())], {
+#         'under__kw_args': quickAllConfs
+#     }),
+# ]
+
+samplers = underSamples + overSamplers + combineSamplers
 
 
 models = [
     (linear_model.LogisticRegression, {}),
-    # ((ensemble.RandomForestClassifier), {
-    #  'model__random_state': [randomState]}),
-    # (neural_network.MLPClassifier, {}),
+    ((ensemble.RandomForestClassifier), {
+     'model__random_state': [randomState]}),
+    (neural_network.MLPClassifier, {}),
     (svm.LinearSVC, {}),
-    # (neighbors.KNeighborsClassifier, {}),
-    # (neural_network.MLPClassifier, {}),
+    (neighbors.KNeighborsClassifier, {}),
+    (neural_network.MLPClassifier, {}),
 ]
 
 
@@ -73,16 +93,12 @@ def combineModelAndSamplers(modelConf, samplerConf):
     for k, v in sConf.items():
         conf[f"model__{k}"] = v
 
-    # Hard part will be how to combine dictionary...
+    pipe = pipeline.Pipeline([('sampler', sampler()), ('model', model())])
 
-    pipeline = imblearn.pipeline.Pipeline(
-        [('sampler', sampler()), ('model', model())])
-
-    return (lambda: pipeline, conf)
+    return (lambda: pipe, conf)
 
 
 pipelineModels = [combineModelAndSamplers(mc, sc)
                   for mc in models for sc in samplers]
 
-# allModels = models + pipelineModels
 allModels = pipelineModels

@@ -181,5 +181,6 @@ def runAllPlotting(trainResults: CVTrainDF, testResults: CVTestDF, trainedModels
     # plotConfusionMatrix(testResults, "test - CM",
     #                     f"{saveDir}test_confusion_matrix")
 
+    testResults.to_csv(f"{saveDir}test_results.csv")
     res = getBestF1ByModels(testResults)
     res.to_csv(f"{saveDir}best_test_results.csv")
