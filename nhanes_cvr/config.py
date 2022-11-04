@@ -1,5 +1,4 @@
-from sklearn import ensemble, linear_model, neural_network, svm, metrics, neighbors, cluster
-import numpy as np
+from sklearn import ensemble, feature_selection, impute, linear_model, model_selection, neural_network, preprocessing, svm, metrics, neighbors, cluster
 from imblearn import FunctionSampler, pipeline, under_sampling, over_sampling, combine
 from nhanes_cvr import transformers as tf
 from sklearn_extra.cluster import KMedoids
@@ -13,16 +12,21 @@ scoringConfig = {
     "accuracy": metrics.make_scorer(metrics.accuracy_score),
     "auc_roc": metrics.make_scorer(metrics.roc_auc_score)
 }
+
+randomState = 999
+splits = 10
+fold = model_selection.StratifiedKFold(
+    n_splits=splits, shuffle=True, random_state=randomState)
+target = 'f1'
+testSize = .2
 maxIter = 200
-randomState = np.random.RandomState(0)
-folds = 10
+folds = 5
 foldRepeats = 10
 testSize = .20
 correlationThreshold = 0.05
 zScoreThreshold = 2.9
 nullThreshold = 3
 
-# These our hyperparamters
 kValues = [2, 3, 4]
 
 clusterMethods = [cluster.KMeans, KMedoids]
@@ -35,70 +39,111 @@ bestScoresFunctions = [tf.highestScoreIndex,
 quickAllConfs = [{'k': k, 'findBest': s, 'clusterMethod': m}
                  for k in kValues for m in clusterMethods for s in bestScoresFunctions]
 
-# TODO:
-# [] 1. Combine Samplers together into it's own pipeline
-# [] 2. Make better display of test scores plot
-# [] 3. Try other sampling methods (questionarre seemed to fail?)
-# [] 4. Generate all results
-# [] 5. Make it to where this can keep the KUS name for the sampler
+replacements = [
+    impute.SimpleImputer(strategy='mean')
+]
 
+drops = [
+    # preprocessing.FunctionTransformer(),
+    tf.DropTransformer(threshold=0.5)
+]
+
+selections = [
+    # feature_selection.SelectPercentile(),
+    preprocessing.FunctionTransformer()
+    # tf.CorrelationSelection(threshold=0.01)
+]
+
+scalers = [
+    # preprocessing.FunctionTransformer(),
+    preprocessing.MinMaxScaler(),
+    preprocessing.StandardScaler(),
+]
 
 underSamples = [
-    (under_sampling.RandomUnderSampler, {}),
-    (under_sampling.ClusterCentroids, {}),
-    (lambda: FunctionSampler(func=tf.kMeansUnderSampling), {
-        'sampler__kw_args': quickAllConfs
-    }),
+    under_sampling.RandomUnderSampler(),
+    under_sampling.ClusterCentroids(),
 ]
 
 overSamplers = [
-    (over_sampling.RandomOverSampler, {}),
-    (over_sampling.SMOTE, {}),
+    over_sampling.RandomOverSampler(),
+    over_sampling.SMOTE(),
 ]
 
 combineSamplers = [
-    (combine.SMOTEENN, {}),
-    (combine.SMOTETomek, {}),
+    combine.SMOTEENN(),
+    combine.SMOTETomek(),
 ]
-
-# multiStepSamplers = [
-#     (lambda: [('under', FunctionSampler(func=tf.kMeansUnderSampling)),
-#               ('over', over_sampling.RandomOverSampler())], {
-#         'under__kw_args': quickAllConfs
-#     }),
-# ]
 
 samplers = underSamples + overSamplers + combineSamplers
 
 
 models = [
-    (linear_model.LogisticRegression, {}),
-    ((ensemble.RandomForestClassifier), {
-     'model__random_state': [randomState]}),
-    (neural_network.MLPClassifier, {}),
-    (svm.LinearSVC, {}),
-    (neighbors.KNeighborsClassifier, {}),
-    (neural_network.MLPClassifier, {}),
+    linear_model.LogisticRegression(),
+    ensemble.RandomForestClassifier(random_state=randomState),
+    svm.LinearSVC(),
+    neighbors.KNeighborsClassifier(),
+    neural_network.MLPClassifier(max_iter=200),
 ]
 
+noSamplingConf = {
+    'drop': drops,
+    'replacement': replacements,
+    'scaling': scalers,
+    'selection': selections,
+    "model": models
+}
 
-def combineModelAndSamplers(modelConf, samplerConf):
-    model, mConf = modelConf
-    sampler, sConf = samplerConf
+noSamplingPipeline = pipeline.Pipeline([
+    ('drop', drops[0]),
+    ('replacement', replacements[0]),
+    ('scaling', scalers[0]),
+    ('selection', selections[0]),
+    ("model", models[0])
+])
 
-    conf = {}
-    for k, v in mConf.items():
-        conf[f"model__{k}"] = v
+samplerConf = noSamplingConf | {
+    'samplers': samplers,
+}
 
-    for k, v in sConf.items():
-        conf[f"model__{k}"] = v
+samplerPipeline = pipeline.Pipeline([
+    ('drop', drops[0]),
+    ('replacement', replacements[0]),
+    ('scaling', scalers[0]),
+    ('selection', selections[0]),
+    ('samplers', samplers[0]),
+    ("model", models[0])
+])
 
-    pipe = pipeline.Pipeline([('sampler', sampler()), ('model', model())])
+kusPipelineConf = noSamplingConf | {
+    'kus__kw_args': quickAllConfs,
+}
 
-    return (lambda: pipe, conf)
+kusPipeline = pipeline.Pipeline([
+    ('drop', drops[0]),
+    ('replacement', replacements[0]),
+    ('scaling', scalers[0]),
+    ('selection', selections[0]),
+    ('kus', FunctionSampler(func=tf.kMeansUnderSampling)),
+    ("model", models[0])
+])
+
+kusWithSamplerPipelineConf = samplerConf | kusPipelineConf
+
+kusWithSamplerPipeline = pipeline.Pipeline([
+    ('drop', drops[0]),
+    ('replacement', replacements[0]),
+    ('scaling', scalers[0]),
+    ('selection', selections[0]),
+    ('kus', FunctionSampler(func=tf.kMeansUnderSampling)),
+    ('samplers', samplers[0]),
+    ("model", models[0])
+])
 
 
-pipelineModels = [combineModelAndSamplers(mc, sc)
-                  for mc in models for sc in samplers]
-
-allModels = pipelineModels
+allPipelines = [
+    (noSamplingPipeline, noSamplingConf),
+    (samplerPipeline, samplerConf),
+    (kusPipeline, kusPipelineConf),
+    (kusWithSamplerPipeline, kusWithSamplerPipelineConf),
+]

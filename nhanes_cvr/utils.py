@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import reduce
-from typing import Callable, List, Tuple, TypeVar
+from typing import Callable, List, TypeVar
 from imblearn import FunctionSampler
 import numpy as np
 import pandas as pd
@@ -11,27 +11,8 @@ import pandas as pd
 from toolz import curry
 import nhanes_cvr.transformers as trans
 from nhanes_cvr.transformers import iqrBinaryClassesRemoval
-from nhanes_cvr.types import CVSearch, CVTrainDF, XYPair
+from nhanes_cvr.types import DF, CVSearch, CVTrainDF, XYPair
 
-
-def getClassName(x) -> str:
-    if x is None:
-        return "None"
-
-    name = x.__class__.__name__
-
-    if (name == "Pipeline"):
-        stepClasses = [getClassName(y) for y in x.named_steps.values()]
-        return '_'.join(stepClasses)
-
-    return name
-
-
-def onlyUpperCase(xs: str) -> str:
-    return "".join([x for x in xs if x.isupper()])
-
-
-def yearToMonths(x): return 12 * x
 
 # Different meanings of ucod_leading - https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
 
@@ -54,7 +35,7 @@ GETY = Callable[[pd.DataFrame], int]
 
 
 @curry
-def labelY(func: GETY, dataset: pd.DataFrame) -> pd.Series:
+def labelY(func: GETY, dataset: DF) -> pd.Series:
     return dataset.agg(func, axis=1)
 
 
@@ -71,7 +52,7 @@ def toCauseOfDeath(x):
     return LeadingCauseOfDeath(int(x))
 
 
-def labelQuestionnaireSet(nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
+def labelQuestionnaireSet(nhanes_dataset: DF) -> XYPair:
     X = nhanes_dataset.drop(columns=["MCQ160F", "MCQ160C", "MCQ160B", "MCQ160E"]) \
         .drop(columns=download.getMortalityColumns()) \
         .select_dtypes(exclude=['object'])
@@ -80,17 +61,18 @@ def labelQuestionnaireSet(nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
     return (X, Y)
 
 
-def nhanesToMortalitySet(nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
+def nhanesToMortalitySet(nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
     dataset = dataset.loc[dataset.MORTSTAT == 1, :]
     X = dataset.drop(columns=download.getMortalityColumns())
     normalCVRDeath = [LeadingCauseOfDeath.HEART_DISEASE,
                       LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE]
-    Y = labelCVR(normalCVRDeath, dataset)  # type: ignore
-    return (X, Y)  # type: ignore
+    Y: pd.Series = labelCVR(normalCVRDeath, dataset)
+    X = X.select_dtypes(exclude=['object'])
+    return (X, Y)
 
 
-def labelCVrBasedOnNHANESMortalityAndExtraFactors(nhanes_dataset) -> XYPair:
+def labelCVrBasedOnNHANESMortalityAndExtraFactors(nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
     dataset = dataset.loc[dataset.MORTSTAT == 1, :]
     X = dataset.drop(columns=download.getMortalityColumns())
@@ -105,16 +87,7 @@ def labelCVrBasedOnNHANESMortalityAndExtraFactors(nhanes_dataset) -> XYPair:
     return (X, Y)
 
 
-@curry
-def nhanesToMortalityWithinTimeSet(withinYear, nhanes_dataset) -> Tuple[pd.DataFrame, pd.Series]:
-    dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
-    dataset = dataset.loc[dataset.MORTSTAT == 1, :]
-    X = dataset.drop(columns=download.getMortalityColumns())
-    Y = labelCVRDeathWithinTime(withinYear, dataset)
-    return (X, Y)  # type: ignore
-
-
-def labelCVRBasedOnCardiovascularCodebook(nhanes_dataset) -> XYPair:
+def labelCVRBasedOnCardiovascularCodeBook(nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.drop(columns=download.getMortalityColumns())
     discomfortInChest = (dataset.CDQ001 == 1)
     notReliefByStanding = (dataset.CDQ005 == 2)
@@ -126,12 +99,13 @@ def labelCVRBasedOnCardiovascularCodebook(nhanes_dataset) -> XYPair:
               "CDQ004", "CDQ005", "CDQ006", "CDQ009A",
               "CDQ009B", "CDQ009C", "CDQ009D", "CDQ009E", "CDQ009F",
               "CDQ009G", "CDQ009H", "CDQ008", "CDQ010"]
-    X = dataset.drop(columns=toDrop)
+    X = dataset.drop(columns=toDrop).select_dtypes(exclude=['object'])
+
     return (X, Y)
 
 
 @curry
-def labelCVRBasedOnLabMetrics(threshold: int, nhanes_dataset: pd.DataFrame) -> XYPair:
+def labelCVRBasedOnLabMetrics(threshold: int, nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.drop(
         columns=download.getMortalityColumns())  # type: ignore
     highChol = (dataset.LBXTC > 239)
@@ -154,7 +128,7 @@ def labelCVRBasedOnLabMetrics(threshold: int, nhanes_dataset: pd.DataFrame) -> X
     return (X, Y)
 
 
-def labelViaQuestionnaire(nhanes_dataset) -> pd.Series:
+def labelViaQuestionnaire(nhanes_dataset: DF) -> pd.Series:
 
     def convertQuestionnaire(X):
         if X.MCQ160F == 1:  # Had Stroke
@@ -171,7 +145,7 @@ def labelViaQuestionnaire(nhanes_dataset) -> pd.Series:
     return labelY(convertQuestionnaire, nhanes_dataset)  # type: ignore
 
 
-def labelCVRDeathWithinTime(withinYear: int, dataset: pd.DataFrame) -> pd.Series:
+def labelCVRDeathWithinTime(withinYear: int, dataset: DF) -> pd.Series:
     cvdDeath = (dataset.UCOD_LEADING == 1) | (dataset.UCOD_LEADING == 5)
     diedWithinYear = (dataset.PERMTH_INT / 12) <= withinYear
     return (cvdDeath & diedWithinYear).astype(int)
@@ -184,15 +158,14 @@ def labelCVRViaCVRDeath(dataset) -> pd.Series:
     return Y  # type: ignore
 
 
-@curry
-def labelCVR(causes: List[LeadingCauseOfDeath], nhanes_dataset: pd.DataFrame) -> pd.Series:
+def labelCVR(causes: List[LeadingCauseOfDeath], nhanes_dataset: DF) -> pd.Series:
 
     return labelY(lambda X: 1 if exists(causes, toCauseOfDeath(X.UCOD_LEADING))
                   else 0, nhanes_dataset)  # type: ignore
 
 
-def labelCVRAndDiabetes(nhanes_dataset: pd.DataFrame) -> pd.Series:
-    def labelFunc(X: pd.DataFrame) -> int:
+def labelCVRAndDiabetes(nhanes_dataset: DF) -> pd.Series:
+    def labelFunc(X: DF) -> int:
         cause = toCauseOfDeath(X.UCOD_LEADING)
         if exists([LeadingCauseOfDeath.HEART_DISEASE, LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE], cause):
             return 1
@@ -203,14 +176,14 @@ def labelCVRAndDiabetes(nhanes_dataset: pd.DataFrame) -> pd.Series:
     return labelY(labelFunc, nhanes_dataset)  # type: ignore
 
 
-def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: pd.DataFrame) -> pd.DataFrame:
+def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: DF) -> DF:
     years = nhanes_dataset.loc[:, "SDDSRVYR"]
     keep = years.apply(lambda x: any([x == y for y in nhanes_years]))
 
     return nhanes_dataset.loc[keep, :]
 
 
-def labelHypertensionBasedOnPaper(nhanes_dataset: pd.DataFrame) -> XYPair:
+def labelHypertensionBasedOnPaper(nhanes_dataset: DF) -> XYPair:
     nhanes_dataset = filterNhanesDatasetByReleaseYears(
         [9, 10], nhanes_dataset)
     hypertenThreshold = 130
@@ -249,7 +222,7 @@ def makeDirectoryIfNotExists(directory: str) -> bool:
         return False
 
 
-def get_nhanes_dataset() -> pd.DataFrame:
+def get_nhanes_dataset() -> DF:
     cacheDir = "../nhanse-dl/nhanes_cache"
     years = types.allContinuousNHANES()
     NHANES_DATASET = download.readCacheNhanesYearsWithMortality(
@@ -287,39 +260,14 @@ def generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFuncs):
             for bestScore in bestScoresFuncs]
 
 
-def pipelineSteps() -> List[str]:
-    return ['model', 'scaling', 'selection', 'replacement', 'sampling']
-
-
-def getPipelineClasses(model: CVSearch) -> List[str]:
-    return [getPipelineStepClass(model, s) for s in pipelineSteps()]
-
-
-def getPipelineClassesAppr(model: CVSearch) -> List[str]:
-    return [onlyUpperCase(s) for s in getPipelineClasses(model)]
-
-
-def getPipelineStepClass(model: CVSearch, step: str):
-    return getClassName(model.estimator.named_steps.get(step))
-
-
-def getPipelineStepClassAppr(model: CVSearch, step: str):
-    return onlyUpperCase(getPipelineStepClass(model, step))
-
-
-def buildDataFrameOfResults(results: List[CVSearch]) -> CVTrainDF:
-    res = [buildDataFrameOfResult(res) for res in results]
-    return CVTrainDF(pd.concat(res, ignore_index=True))
-
-
-def buildDataFrameOfResult(res: CVSearch) -> CVTrainDF:
-    res = pd.DataFrame(res.cv_results_) \
-        .assign(model=getPipelineStepClass(res, 'model'),
-                scaling=getPipelineStepClass(res, 'scaling'),
-                sampling=getPipelineStepClass(res, 'sampling'),
-                selection=getPipelineStepClass(res, 'selection'),
-                replacement=getPipelineStepClass(res, 'replacement'))
+def buildDataFrameOfResult(cvSearch: CVSearch) -> CVTrainDF:
+    res = pd.DataFrame(cvSearch.cv_results_)
     return CVTrainDF(res)
+
+
+def buildDataFrameOfResults(cvSearches: List[CVSearch]) -> CVTrainDF:
+    res = [buildDataFrameOfResult(cv) for cv in cvSearches]
+    return CVTrainDF(pd.concat(res, ignore_index=True))
 
 
 def concatString(xs: List[str]) -> str:

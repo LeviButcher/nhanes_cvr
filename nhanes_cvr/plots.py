@@ -7,48 +7,24 @@ from nhanes_cvr.types import *
 from nhanes_cvr import utils
 
 
-def pairPlotsForModelConfigs(df: CVTrainDF, scoring: List[str], savePath: str):
-    # May have to change to accommodate model config
-    # TODO Make this into line plots
-    for name, res in df.groupby(by="model"):
-        confs = res.params.apply(lambda x: list(x.keys())).sum()
-        confs = [x for x in confs if x != "model__random_state"]
-        uniqueConfs = pd.Series(confs).drop_duplicates() \
-            .apply(lambda x: f"param_{x}")
-
-        g = sns.pairplot(res, x_vars=uniqueConfs, y_vars=scoring,
-                         hue="scaling", kind="scatter")
-
-        def customLinePlot(xdata, ydata, **kwargs):
-            sns.lineplot(x=xdata, y=ydata, **kwargs)
-
-        g.map(customLinePlot)
-
-        g.fig.subplots_adjust(top=.9)
-        g.fig.suptitle(name)
-        g.fig.subplots_adjust(hspace=0.9, wspace=0.9)
-
-        plt.savefig(f"{savePath}_{name}")
-        plt.close()
-
-
 def plotValCurveForModels(df: CVTrainDF, foldCount: int, savePath: str):
     idxFoldNumber = 5
     accTrain = [f"split{i}_train_accuracy" for i in range(foldCount)]
     accTest = [f"split{i}_test_accuracy" for i in range(foldCount)]
 
     bestIdx = [res.rank_test_f1.idxmin()
-               for _, res in df.groupby(by=['model', 'scaling'])]
+               for _, res in df.groupby(by=['param_model', 'param_scaling'])]
     bestModels = df.loc[bestIdx, :]
 
     data = []
-    for _, res in bestModels.groupby(by=['model', 'scaling']):
+    for _, res in bestModels.groupby(by=['param_model', 'param_scaling']):
         trainScore = res.melt(
-            id_vars=['model', 'scaling'], value_vars=accTrain)
+            id_vars=['param_model', 'param_scaling'], value_vars=accTrain)
         # Index 5 is position of fold number
         trainScore = trainScore.assign(idx=trainScore.variable.apply(
             lambda x: int(x[idxFoldNumber]))).assign(type="train")
-        testScore = res.melt(id_vars=['model', 'scaling'], value_vars=accTest)
+        testScore = res.melt(
+            id_vars=['param_model', 'param_scaling'], value_vars=accTest)
         testScore = testScore.assign(idx=testScore.variable.apply(
             lambda x: int(x[idxFoldNumber]))).assign(type="test")
         data.append(trainScore)
@@ -67,8 +43,7 @@ def plotValCurveForModels(df: CVTrainDF, foldCount: int, savePath: str):
 def plotTestResults(results: CVTestDF, scoring: List[str], title: str, savePath: str):
     fig, axes = plt.subplots(1, len(scoring), figsize=(10, 5))
     for score, ax in zip(scoring, axes):
-        sns.scatterplot(data=results, x="modelAppr",
-                        y=score, hue="scaling", ax=ax, legend=None)
+        sns.scatterplot(data=results, x="model", y=score, hue="scaling", ax=ax)
 
     axes[1].set_title(title)
     plt.tight_layout()
@@ -120,9 +95,9 @@ def plotROCCurve(models: List[CVSearch], X: pd.DataFrame, Y: pd.Series, savePath
         metrics.RocCurveDisplay.from_estimator(
             m, X, Y, ax=ax, name=name)
 
-    ax.set_title("roc curve")
-    handles, labels = ax.get_legend_handles_labels()
-    lgd = ax.legend(handles, labels, loc='upper center',
+    plt.title("roc curve")
+    handles, labels = ax.get_legend_handles_labels()  # type: ignore
+    lgd = ax.legend(handles, labels, loc='upper center',  # type: ignore
                     bbox_to_anchor=(1.4, 1))
     plt.savefig(savePath, bbox_extra_artists=(lgd,), bbox_inches='tight')
     plt.close()
@@ -151,36 +126,37 @@ def randomForestFeatureImportance(models: List[CVSearch], features: List[str], s
 
 
 def getBestF1ByModels(res: Union[CVTestDF, CVTestDF]):
-    best = res.groupby("model")['f1'].idxmax()
+    best = res.groupby("model")['f1'].idxmax()  # type: ignore
     return res.loc[best, :]
 
 
-def runAllPlotting(trainResults: CVTrainDF, testResults: CVTestDF, trainedModels: List[CVSearch],
+def runAllPlotting(trainResults: CVTrainDF, testResults: CVTestDF, cvSearches: List[CVSearch],
                    trainX: pd.DataFrame, trainY: pd.Series, testX: pd.DataFrame, testY: pd.Series,
                    scoring: Scoring, saveDir: str):
-    scoringNames = list(scoring.keys())
+    # scoringNames = list(scoring.keys())
 
     trainResults.to_csv(f"{saveDir}train_results.csv")
-    plotValCurveForModels(trainResults, 10, f"{saveDir}train_val_curves")
+    # plotValCurveForModels(trainResults, 10, f"{saveDir}train_val_curves")
 
     # features = trainX.columns.to_list()
     # randomForestFeatureImportance(
     #     trainedModels, features, f"{saveDir}random_forest_importance.csv")
 
     # Training Plots
-    plotPrecisionRecallForModels(
-        trainedModels, trainX, trainY, f"{saveDir}train_precision_recall")
-    plotROCCurve(trainedModels, trainX, trainY, f"{saveDir}train_roc_curve")
+    # plotPrecisionRecallForModels(
+    #     cvSearches, trainX, trainY, f"{saveDir}train_precision_recall")
+    # plotROCCurve(cvSearches, trainX, trainY, f"{saveDir}train_roc_curve")
 
     # Test Plots
-    plotTestResults(testResults, scoringNames,
-                    f"{saveDir} - test scores", f"{saveDir}test_scores")
-    plotPrecisionRecallForModels(
-        trainedModels, testX, testY, f"{saveDir}test_precision_recall")
-    plotROCCurve(trainedModels, testX, testY, f"{saveDir}test_roc_curve")
+    # plotTestResults(testResults, scoringNames,
+    #                 f"{saveDir} - test scores", f"{saveDir}test_scores")
+    # plotPrecisionRecallForModels(
+    #     cvSearches, testX, testY, f"{saveDir}test_precision_recall")
+    # plotROCCurve(cvSearches, testX, testY, f"{saveDir}test_roc_curve")
+
     # plotConfusionMatrix(testResults, "test - CM",
     #                     f"{saveDir}test_confusion_matrix")
 
     testResults.to_csv(f"{saveDir}test_results.csv")
-    res = getBestF1ByModels(testResults)
-    res.to_csv(f"{saveDir}best_test_results.csv")
+    # res = getBestF1ByModels(testResults)
+    # res.to_csv(f"{saveDir}best_test_results.csv")

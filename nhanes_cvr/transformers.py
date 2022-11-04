@@ -1,5 +1,5 @@
 from functools import reduce
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Union
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import cluster, metrics,  ensemble
@@ -76,7 +76,7 @@ class CorrelationSelection(BaseEstimator, TransformerMixin):
 
 
 # Assume 1-0 class label
-def splitByBinaryClass(X, y) -> Tuple[XYPair]:
+def splitByBinaryClass(X: pd.DataFrame, y: pd.Series) -> Tuple[XYPair, XYPair]:
     trueLabel = y == 1
 
     trueX = X.loc[trueLabel, :]
@@ -84,7 +84,10 @@ def splitByBinaryClass(X, y) -> Tuple[XYPair]:
     falseX = X.loc[~trueLabel, :]
     falseY = y.loc[~trueLabel]
 
-    return (trueX, trueY), (falseX, falseY)
+    true = (trueX, trueY)
+    false = (falseX, falseY)
+
+    return (true, false)
 
 
 # Majority always first in tuple
@@ -103,7 +106,7 @@ def splitByClusterMethod(model, data: XYPair, k: int) -> List[XYPair]:
     clusterCounts = assignedClusters.value_counts().sort_values(ascending=False)
 
     clusterSplits = []
-    for i, v in clusterCounts.iteritems():
+    for i, v in clusterCounts.iteritems():  # type: ignore
         toKeep = (assignedClusters == i)
         clusterData = (X.loc[toKeep, :], y.loc[toKeep])
         clusterSplits.append(clusterData)
@@ -119,7 +122,7 @@ def splitByKMeans(data: XYPair, k: int) -> List[XYPair]:
     clusterCounts = assignedClusters.value_counts().sort_values(ascending=False)
 
     clusterSplits = []
-    for i, v in clusterCounts.iteritems():
+    for i, v in clusterCounts.iteritems():  # type: ignore
         toKeep = (assignedClusters == i)
         clusterData = (X.loc[toKeep, :], y.loc[toKeep])
         clusterSplits.append(clusterData)
@@ -148,11 +151,11 @@ def assert_no_na(X: pd.DataFrame):
     assert (not hasNulls)
 
 
-FindBestScore = Callable[[List[float]], int]
+FindBestScore = Callable[[List[float]], Union[int, str]]
 KClusterSplitter = Callable[[XYPair, int], List[XYPair]]
 
 
-def highestScoreIndex(scores: List[float]):
+def highestScoreIndex(scores: List[float]) -> int | str:
     return pd.Series(scores).idxmax()
 
 
@@ -195,9 +198,9 @@ def kMeansUnderSampling(X, y, k=2, findBest: FindBestScore = highestScoreIndex, 
 
     scores = [silhouetteScore(g) for _, g in groups]
 
-    # Pick majority cluster with best silloute score
-    bestIdx = findBest(scores)
-    (bestMajority, _) = groups[bestIdx]
+    # Pick majority cluster with best silhouette score
+    bestIdx = findBest(scores)  # type: ignore
+    (bestMajority, _) = groups[bestIdx]  # type: ignore
 
     (X, y) = combineAllPairs(minorityClusters + [bestMajority])
 
@@ -226,9 +229,8 @@ class DropNullsTransformer(BaseEstimator, TransformerMixin):
 
 
 def outlier_rejection(X, y):
-    """This will be our function used to resample our dataset."""
     model = ensemble.IsolationForest(
-        max_samples=100, contamination=0.4, random_state=42)
+        max_samples="100", contamination="0.4", random_state=42)
     model.fit(X)
     y_pred = model.predict(X)
     return X[y_pred == 1], y[y_pred == 1]

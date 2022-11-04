@@ -1,10 +1,12 @@
 from typing import Callable, List, Tuple, TypeVar, Union, Dict, NewType, Any
+import imblearn
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn import pipeline
 from sklearn import model_selection, preprocessing, linear_model, ensemble, impute, feature_selection
 
 import pandas as pd
 
+DF = pd.DataFrame
 XSet = pd.DataFrame
 YSet = pd.Series
 XYPair = Tuple[XSet, YSet]
@@ -16,7 +18,7 @@ CVTestDF = NewType('CVTestDF', pd.DataFrame)
 CVRes = Tuple[CVTrainDF, CVTestDF]
 LabellerTrainDF = NewType('LabellerTrainDF', pd.DataFrame)
 LabellerTestDF = NewType('LabellerTestDF', pd.DataFrame)
-LabellerRes = CVRes = Tuple[LabellerTrainDF, LabellerTestDF]
+LabellerRes = Tuple[LabellerTrainDF, LabellerTestDF]
 
 
 # Config Typing
@@ -25,8 +27,12 @@ ModelConf = Dict[str, List[Any]]
 Model = Union[linear_model.LogisticRegression,
               ensemble.RandomForestClassifier, pipeline.Pipeline]
 Scaling = Union[preprocessing.StandardScaler, preprocessing.MinMaxScaler]
-CVModel = Tuple[Model, ModelConf]
-CVModelList = List[CVModel]
+
+PipeLine = imblearn.pipeline.Pipeline
+PipeLinConf = Dict
+PipeLineCV = Tuple[PipeLine, PipeLinConf]
+
+
 Fold = model_selection.StratifiedKFold
 ModelConst = Callable[[], Model]
 GenModelConf = Tuple[ModelConst, ModelConf]
