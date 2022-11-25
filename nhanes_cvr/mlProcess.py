@@ -1,30 +1,34 @@
-from more_itertools import unzip
 import pandas as pd
 from sklearn import model_selection, metrics
 from typing import List
-from nhanes_cvr.config import randomState
 
 from sklearn import clone
 from nhanes_cvr import utils
 from nhanes_cvr.types import *
 from nhanes_cvr import plots
+import matplotlib.pyplot as plt
+import copy
 
 
 N_JOBS = 5
 TOP_MODELS_TO_USE = 5
+randomState = 42
 
 
 def randomSearchCV(pipeline: PipeLine, config: PipeLinConf, scoring: Scoring,
                    cv: Folding, X: DF, Y: pd.Series) -> CVSearch:
+    # Necessary to ensure no reused references between label runs
+    pipeline = clone(pipeline)  # type: ignore
+    config = copy.deepcopy(config)
     clf = model_selection.GridSearchCV(
         estimator=pipeline, param_grid=config, scoring=scoring,
         n_jobs=N_JOBS, cv=cv, return_train_score=False, refit=False)
     return clf.fit(X, Y)
 
 
-def trainForTopFittingParams(pipeline: PipeLine, cvSearch: CVSearch, target: str,
+def trainForTopFittingParams(cvSearch: CVSearch, target: str,
                              modelsToUse: int, X: DF, Y: pd.Series) -> List[PipeLine]:
-    def getNewModel(): return clone(pipeline)
+    def getNewModel(): return clone(cvSearch.estimator)
     cvResults = DF(cvSearch.cv_results_)
     paramsToUse = cvResults.sort_values(by=f"mean_test_{target}", ascending=False)\
         .head(modelsToUse)\
@@ -59,33 +63,47 @@ def evaluateAllModels(models: List[PipeLine], scoring: Scoring, X: DF, Y: pd.Ser
     return CVTestDF(df)
 
 
+"""
+Return back best performing pipeline
+"""
+
+
 def trainTestProcess(cvModels: List[PipeLineCV], scoring: Scoring, target: str,
                      cv: Folding, trainX: DF, trainY: pd.Series,
-                     testX: DF, testY: pd.Series, saveDir: str) -> CVRes:
+                     testX: DF, testY: pd.Series, saveDir: str) -> PipeLine:
     utils.makeDirectoryIfNotExists(saveDir)
     saveDir = f"{saveDir}/"
 
-    cvSearchesWithPipeline = [(m, randomSearchCV(m, c, scoring, cv, trainX, trainY))
-                              for m, c in cvModels]
-    cvSearches = [c for _, c in cvSearchesWithPipeline]
+    cvSearches = [randomSearchCV(m, c, scoring, cv, trainX, trainY)
+                  for m, c in cvModels]
 
     trainedModels = [p
-                     for pipeline, cvs in cvSearchesWithPipeline
-                     for p in trainForTopFittingParams(pipeline, cvs, target, TOP_MODELS_TO_USE, trainX, trainY)]
+                     for cvs in cvSearches
+                     for p in trainForTopFittingParams(cvs, target, TOP_MODELS_TO_USE, trainX, trainY)]
 
     trainResults = utils.buildDataFrameOfResults(cvSearches)
     testResults = evaluateAllModels(trainedModels, scoring, testX, testY)
 
-    plots.runAllPlotting(trainResults, testResults, cvSearches,
+    # May need checked
+    bestIdx: int = testResults['f1'].idxmax()  # type: ignore
+    bestTestModel = trainedModels[bestIdx]
+
+    plots.runAllPlotting(trainResults, testResults, trainedModels,
                          trainX, trainY, testX, testY, scoring, saveDir)
 
-    return (trainResults, testResults)
+    # bestFeatures = pd.Series(
+    #     bestTestModel.named_steps['drop'].transformed_names_)
+    # bestFeatures.to_csv(f"{saveDir}chosen_features.csv")
+
+    return bestTestModel
 
 
 def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scoring: Scoring,
-                target: str, testSize: float, cv: Fold, data: DF, saveDir: str) -> LabellerRes:
+                target: str, testSize: float, cv: Fold, dataset: DF, saveDir: str) -> PipeLine:
     name, labeller = namedLabeller
-    (X, Y) = labeller(data)
+    print(dataset.shape)
+    (X, Y) = labeller(dataset)
+    print(X.shape)
 
     utils.makeDirectoryIfNotExists(saveDir)
     saveDir = f"{saveDir}/{name}"
@@ -99,24 +117,37 @@ def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scori
     trainY = pd.Series(trainY)
     testY = pd.Series(testY)
 
-    (trainRes, testRes) = trainTestProcess(
+    bestModel = trainTestProcess(
         pipelines, scoring, target, cv,
         trainX, trainY, testX, testY, saveDir)
-    trainRes = LabellerTrainDF(trainRes.assign(labeller=name))
-    testRes = LabellerTestDF(testRes.assign(labeller=name))
 
-    return (trainRes, testRes)
+    return bestModel
 
 
-def runAllLabellers(labelMethods: NamedLabellerList, pipelines: List[PipeLineCV],
+def runRiskAnalyses(labelMethods: NamedLabellerList, pipelines: List[PipeLineCV],
                     scoringConfig: Scoring, target: str,
-                    testSize: float, fold: Fold, dataset: DF, saveDir: str) -> LabellerRes:
-    allResults = [runLabeller(nl, pipelines, scoringConfig, target, testSize, fold, dataset, saveDir)
-                  for nl in labelMethods]
+                    testSize: float, fold: Fold, dataset: DF, saveDir: str):
+    # May need to stratify here
+    coreDataset, riskDataset = model_selection.train_test_split(
+        dataset, test_size=testSize, random_state=randomState)
+    coreDataset = pd.DataFrame(coreDataset)
+    riskDataset = pd.DataFrame(riskDataset)
 
-    trainRes, testRes = unzip(allResults)
+    bestModelsWithLabeller = [(nl, runLabeller(nl, pipelines, scoringConfig, target, testSize, fold, coreDataset, saveDir))
+                              for nl in labelMethods]
 
-    allTrain = LabellerTrainDF(pd.concat(trainRes, ignore_index=True))
-    allTest = LabellerTestDF(pd.concat(testRes, ignore_index=True))
+    riskPredictions = []
+    for ((_, labeller), model) in bestModelsWithLabeller:
+        (xCore, _) = labeller(coreDataset)
+        riskX = riskDataset.loc[:, xCore.columns.to_list()]
+        res = model.predict(riskX)
+        riskPredictions.append(res)
 
-    return (allTrain, allTest)
+    riskScores = pd.DataFrame(riskPredictions).sum(axis=0).value_counts()
+    riskScores.to_csv(f"{saveDir}/riskAnalyses.csv")
+    plt.bar(riskScores.index, riskScores)
+    plt.xticks(riskScores.index)
+    plt.ylabel("Count")
+    plt.xlabel("Risk Count")
+    plt.savefig(f"{saveDir}/riskAnalyses_plot.png")
+    plt.close()

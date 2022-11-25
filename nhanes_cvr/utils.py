@@ -1,15 +1,12 @@
 from enum import Enum
 from functools import reduce
-from typing import Callable, List, TypeVar
-from imblearn import FunctionSampler
+from typing import List, TypeVar
 import numpy as np
 import pandas as pd
-from scipy import stats
 from nhanes_dl import download, types
 from typing import List
 import pandas as pd
 from toolz import curry
-import nhanes_cvr.transformers as trans
 from nhanes_cvr.transformers import iqrBinaryClassesRemoval
 from nhanes_cvr.types import DF, CVSearch, CVTrainDF, XYPair
 
@@ -31,14 +28,6 @@ class LeadingCauseOfDeath(Enum):
     NOT_DEAD = 11
 
 
-GETY = Callable[[pd.DataFrame], int]
-
-
-@curry
-def labelY(func: GETY, dataset: DF) -> pd.Series:
-    return dataset.agg(func, axis=1)
-
-
 T = TypeVar('T')
 
 
@@ -52,42 +41,36 @@ def toCauseOfDeath(x):
     return LeadingCauseOfDeath(int(x))
 
 
-def labelQuestionnaireSet(nhanes_dataset: DF) -> XYPair:
+def nhanesToQuestionnaireSet(nhanes_dataset: DF) -> XYPair:
     X = nhanes_dataset.drop(columns=["MCQ160F", "MCQ160C", "MCQ160B", "MCQ160E"]) \
         .drop(columns=download.getMortalityColumns()) \
         .select_dtypes(exclude=['object'])
 
-    Y = labelViaQuestionnaire(nhanes_dataset)
+    hadStroke = nhanes_dataset.MCQ160F == 1  # Stroke
+    hadCoronary = nhanes_dataset.MCQ160C == 1  # Coronary Heart Disease
+    hadCongestiveHeartFailure = nhanes_dataset.MCQ160B == 1  # Congestive Heart Failure
+    hadHeartAttack = nhanes_dataset.MCQ160E == 1  # Heart Attack
+    Y = hadStroke | hadCoronary | hadCongestiveHeartFailure | hadHeartAttack
+
     return (X, Y)
 
 
 def nhanesToMortalitySet(nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
     dataset = dataset.loc[dataset.MORTSTAT == 1, :]
-    X = dataset.drop(columns=download.getMortalityColumns())
-    normalCVRDeath = [LeadingCauseOfDeath.HEART_DISEASE,
-                      LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE]
-    Y: pd.Series = labelCVR(normalCVRDeath, dataset)
-    X = X.select_dtypes(exclude=['object'])
-    return (X, Y)
+    leadingCause = dataset.UCOD_LEADING.apply(toCauseOfDeath)  # type: ignore
 
+    hadHeartDisease = leadingCause == LeadingCauseOfDeath.HEART_DISEASE
+    hadCerebrovascular = leadingCause == LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE
 
-def labelCVrBasedOnNHANESMortalityAndExtraFactors(nhanes_dataset: DF) -> XYPair:
-    dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
-    dataset = dataset.loc[dataset.MORTSTAT == 1, :]
-    X = dataset.drop(columns=download.getMortalityColumns())
-    mortStat = dataset.UCOD_LEADING.apply(toCauseOfDeath)
-    cvrDeath = (mortStat == LeadingCauseOfDeath.HEART_DISEASE) \
-        | (mortStat == LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE) \
-        | (mortStat == LeadingCauseOfDeath.DIABETES_MELLITUS)
-    diabetesContrib = dataset.DIABETES == 1
-    hypertenContrib = dataset.HYPERTEN == 1
-    Y = cvrDeath | diabetesContrib | hypertenContrib
+    Y = hadHeartDisease | hadCerebrovascular
+    X = dataset.drop(columns=download.getMortalityColumns()) \
+        .select_dtypes(exclude=['object'])
 
     return (X, Y)
 
 
-def labelCVRBasedOnCardiovascularCodeBook(nhanes_dataset: DF) -> XYPair:
+def nhanesToCardiovascularCodeBookSet(nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.drop(columns=download.getMortalityColumns())
     discomfortInChest = (dataset.CDQ001 == 1)
     notReliefByStanding = (dataset.CDQ005 == 2)
@@ -105,7 +88,7 @@ def labelCVRBasedOnCardiovascularCodeBook(nhanes_dataset: DF) -> XYPair:
 
 
 @curry
-def labelCVRBasedOnLabMetrics(threshold: int, nhanes_dataset: DF) -> XYPair:
+def nhanesToLabSet(threshold: int, nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.drop(
         columns=download.getMortalityColumns())  # type: ignore
     highChol = (dataset.LBXTC > 239)
@@ -128,62 +111,7 @@ def labelCVRBasedOnLabMetrics(threshold: int, nhanes_dataset: DF) -> XYPair:
     return (X, Y)
 
 
-def labelViaQuestionnaire(nhanes_dataset: DF) -> pd.Series:
-
-    def convertQuestionnaire(X):
-        if X.MCQ160F == 1:  # Had Stroke
-            return 1
-        elif X.MCQ160C == 1:  # Had Coronary heart disease
-            return 1
-        elif X.MCQ160B == 1:  # Had Congestive Heart Failure
-            return 1
-        elif X.MCQ160E == 1:  # Had Heart Attack
-            return 1
-        else:
-            return 0
-
-    return labelY(convertQuestionnaire, nhanes_dataset)  # type: ignore
-
-
-def labelCVRDeathWithinTime(withinYear: int, dataset: DF) -> pd.Series:
-    cvdDeath = (dataset.UCOD_LEADING == 1) | (dataset.UCOD_LEADING == 5)
-    diedWithinYear = (dataset.PERMTH_INT / 12) <= withinYear
-    return (cvdDeath & diedWithinYear).astype(int)
-
-
-def labelCVRViaCVRDeath(dataset) -> pd.Series:
-    normalCVRDeath = [LeadingCauseOfDeath.HEART_DISEASE,
-                      LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE]
-    Y = labelCVR(normalCVRDeath, dataset)  # type: ignore
-    return Y  # type: ignore
-
-
-def labelCVR(causes: List[LeadingCauseOfDeath], nhanes_dataset: DF) -> pd.Series:
-
-    return labelY(lambda X: 1 if exists(causes, toCauseOfDeath(X.UCOD_LEADING))
-                  else 0, nhanes_dataset)  # type: ignore
-
-
-def labelCVRAndDiabetes(nhanes_dataset: DF) -> pd.Series:
-    def labelFunc(X: DF) -> int:
-        cause = toCauseOfDeath(X.UCOD_LEADING)
-        if exists([LeadingCauseOfDeath.HEART_DISEASE, LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE], cause):
-            return 1
-        elif cause == LeadingCauseOfDeath.DIABETES_MELLITUS:
-            return 2
-        return 0
-
-    return labelY(labelFunc, nhanes_dataset)  # type: ignore
-
-
-def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: DF) -> DF:
-    years = nhanes_dataset.loc[:, "SDDSRVYR"]
-    keep = years.apply(lambda x: any([x == y for y in nhanes_years]))
-
-    return nhanes_dataset.loc[keep, :]
-
-
-def labelHypertensionBasedOnPaper(nhanes_dataset: DF) -> XYPair:
+def nhanesToHypertensionPaperSet(nhanes_dataset: DF) -> XYPair:
     nhanes_dataset = filterNhanesDatasetByReleaseYears(
         [9, 10], nhanes_dataset)
     hypertenThreshold = 130
@@ -191,7 +119,7 @@ def labelHypertensionBasedOnPaper(nhanes_dataset: DF) -> XYPair:
             "BMXBMI", "DIQ010", "SMQ020", "KIQ022"]
     systolicCols = ["BPXSY1", "BPXSY2", "BPXSY3"]
 
-    # Dropping null columns
+    # Dropping null row
     toDrop = nhanes_dataset.loc[:, systolicCols +
                                 ["BMXBMI"]].isna().any(axis=1)
     nhanes_dataset = nhanes_dataset.loc[~toDrop, :]
@@ -205,10 +133,11 @@ def labelHypertensionBasedOnPaper(nhanes_dataset: DF) -> XYPair:
     return iqrBinaryClassesRemoval(X, y)
 
 
-def removeOutliers(z_score, df, columns=None):
-    columns = columns if columns is not None else df.columns
-    scores = np.abs(stats.zscore(df.loc[:, columns]))
-    return (scores < z_score).all(axis=1)
+def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: DF) -> DF:
+    years = nhanes_dataset.loc[:, "SDDSRVYR"]
+    keep = years.apply(lambda x: any([x == y for y in nhanes_years]))
+
+    return nhanes_dataset.loc[keep, :]
 
 
 def makeDirectoryIfNotExists(directory: str) -> bool:
@@ -248,16 +177,6 @@ def get_nhanes_dataset() -> DF:
 
     print(f"Main Dataset: {dataset.shape}")
     return dataset
-
-
-def generateKMeansUnderSampling(kValues, clusterMethods, bestScoresFuncs):
-    return [(f"{cm.__name__}_undersampling_{k}_{bestScore.__name__}",
-            lambda: FunctionSampler(
-                func=trans.kMeansUnderSampling,
-                kw_args={'k': k, 'findBest': bestScore, 'clusterMethod': cm}))
-            for k in kValues
-            for cm in clusterMethods
-            for bestScore in bestScoresFuncs]
 
 
 def buildDataFrameOfResult(cvSearch: CVSearch) -> CVTrainDF:
