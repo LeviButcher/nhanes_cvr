@@ -55,6 +55,21 @@ def nhanesToQuestionnaireSet(nhanes_dataset: DF) -> XYPair:
     return (X, Y)
 
 
+def nhanesCVRDeath(dataset: DF) -> pd.Series:
+    # Do not need to check if person has died
+    leadingCause = dataset.UCOD_LEADING.apply(toCauseOfDeath)  # type: ignore
+
+    hadHeartDisease = leadingCause == LeadingCauseOfDeath.HEART_DISEASE
+    hadCerebrovascular = leadingCause == LeadingCauseOfDeath.CEREBROVASCULAR_DISEASE
+
+    return hadHeartDisease | hadCerebrovascular
+
+
+def nhanesMortalityContributedDeath(dataset: DF) -> pd.Series:
+    hyperTen = dataset.HYPERTEN.fillna(0)
+    return hyperTen == 1
+
+
 def nhanesToMortalitySet(nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
     dataset = dataset.loc[dataset.MORTSTAT == 1, :]

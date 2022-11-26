@@ -1,10 +1,12 @@
 import pandas as pd
-from sklearn import ensemble, impute, linear_model, model_selection, neural_network, preprocessing, svm, metrics, neighbors, cluster
-from imblearn import FunctionSampler, pipeline, under_sampling
+from sklearn import ensemble, impute, linear_model, model_selection, neural_network, preprocessing, svm, metrics, neighbors, preprocessing
+from imblearn import FunctionSampler, pipeline, under_sampling, combine
+import sklearn
+from sklearn.compose import make_column_selector
 from nhanes_cvr import transformers as tf
-from sklearn_extra.cluster import KMedoids
 import nhanes_cvr.utils as utils
 import nhanes_cvr.mlProcess as ml
+from sklearn_pandas import DataFrameMapper
 
 
 # CONFIGURATION VARIABLES
@@ -23,16 +25,7 @@ fold = model_selection.StratifiedKFold(
 target = 'f1'
 testSize = .2
 testSize = .20
-kValues = [2, 3, 4]
-clusterMethods = [cluster.KMeans, KMedoids]
-bestScoresFunctions = [tf.highestScoreIndex,
-                       tf.lowestScoreIndex,
-                       tf.bestScoreByClosestToMean,
-                       tf.bestScoreByClosestToMedian]
 
-# All configs for kMeansUnderSampling
-quickAllConfs = [{'k': k, 'findBest': s, 'clusterMethod': m}
-                 for k in kValues for m in clusterMethods for s in bestScoresFunctions]
 
 replacements = [
     impute.SimpleImputer(strategy='mean')
@@ -43,7 +36,7 @@ drops = [
 ]
 
 selections = [
-    tf.CorrelationSelection(threshold=0.01)
+    preprocessing.FunctionTransformer(tf.handpickedSelector)
 ]
 
 scalers = [
@@ -52,7 +45,6 @@ scalers = [
 ]
 
 samplers = [
-    FunctionSampler(),
     under_sampling.RandomUnderSampler(),
 ]
 
@@ -91,9 +83,9 @@ allPipelines = [
 ]
 
 labelMethods = [
-    # ("lab_thresh", utils.labelCVRBasedOnLabMetrics(2)),
-    # ("cardiovascular_codebook", utils.labelCVRBasedOnCardiovascularCodeBook),
-    # ("questionnaire", utils.labelQuestionnaireSet),
+    ("lab_thresh", utils.nhanesToLabSet(2)),
+    ("cardiovascular_codebook", utils.nhanesToCardiovascularCodeBookSet),
+    ("questionnaire", utils.nhanesToQuestionnaireSet),
     ("cvr_death", utils.nhanesToMortalitySet),
 ]
 
@@ -109,5 +101,5 @@ def runCVRHandpickedRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
         X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
-    ml.runRiskAnalyses(labelMethods, allPipelines, scoringConfig, target,
-                       testSize, fold, dataset, saveDir)
+    ml.runRiskAnalyses("cvrHandpickedRisk", labelMethods, allPipelines, scoringConfig, target,
+                       testSize, fold, dataset, utils.nhanesCVRDeath, saveDir)

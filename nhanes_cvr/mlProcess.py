@@ -1,13 +1,14 @@
+from matplotlib import patches
 import pandas as pd
 from sklearn import model_selection, metrics
 from typing import List
-
 from sklearn import clone
 from nhanes_cvr import utils
 from nhanes_cvr.types import *
 from nhanes_cvr import plots
 import matplotlib.pyplot as plt
 import copy
+import seaborn as sns
 
 
 N_JOBS = 5
@@ -92,7 +93,7 @@ def trainTestProcess(cvModels: List[PipeLineCV], scoring: Scoring, target: str,
                          trainX, trainY, testX, testY, scoring, saveDir)
 
     # bestFeatures = pd.Series(
-    #     bestTestModel.named_steps['drop'].transformed_names_)
+    #     bestTestModel[:-1].n_features_in_)
     # bestFeatures.to_csv(f"{saveDir}chosen_features.csv")
 
     return bestTestModel
@@ -101,9 +102,7 @@ def trainTestProcess(cvModels: List[PipeLineCV], scoring: Scoring, target: str,
 def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scoring: Scoring,
                 target: str, testSize: float, cv: Fold, dataset: DF, saveDir: str) -> PipeLine:
     name, labeller = namedLabeller
-    print(dataset.shape)
     (X, Y) = labeller(dataset)
-    print(X.shape)
 
     utils.makeDirectoryIfNotExists(saveDir)
     saveDir = f"{saveDir}/{name}"
@@ -116,6 +115,8 @@ def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scori
     testX = DF(testX)
     trainY = pd.Series(trainY)
     testY = pd.Series(testY)
+    print(trainX.shape)
+    print(testX.shape)
 
     bestModel = trainTestProcess(
         pipelines, scoring, target, cv,
@@ -124,12 +125,12 @@ def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scori
     return bestModel
 
 
-def runRiskAnalyses(labelMethods: NamedLabellerList, pipelines: List[PipeLineCV],
+def runRiskAnalyses(name: str, labelMethods: NamedLabellerList, pipelines: List[PipeLineCV],
                     scoringConfig: Scoring, target: str,
-                    testSize: float, fold: Fold, dataset: DF, saveDir: str):
+                    testSize: float, fold: Fold, dataset: DF, riskFunction: GetRisk, saveDir: str):
     # May need to stratify here
     coreDataset, riskDataset = model_selection.train_test_split(
-        dataset, test_size=testSize, random_state=randomState)
+        dataset, test_size=.1, random_state=randomState)
     coreDataset = pd.DataFrame(coreDataset)
     riskDataset = pd.DataFrame(riskDataset)
 
@@ -143,11 +144,24 @@ def runRiskAnalyses(labelMethods: NamedLabellerList, pipelines: List[PipeLineCV]
         res = model.predict(riskX)
         riskPredictions.append(res)
 
-    riskScores = pd.DataFrame(riskPredictions).sum(axis=0).value_counts()
-    riskScores.to_csv(f"{saveDir}/riskAnalyses.csv")
-    plt.bar(riskScores.index, riskScores)
-    plt.xticks(riskScores.index)
-    plt.ylabel("Count")
-    plt.xlabel("Risk Count")
+    riskScore = pd.DataFrame(riskPredictions).sum(axis=0)
+
+    riskLabel = riskFunction(riskDataset)
+    df = pd.DataFrame({'score': riskScore.to_list(),
+                      'risk': riskLabel.to_list()})
+
+    totalScore = df.score.value_counts()
+    totalRisk = df.groupby('score').sum().reset_index()
+    totalRisk = totalRisk.assign(total=totalScore)
+
+    sns.barplot(data=totalRisk, x="score", y="total", color="lightblue")
+    sns.barplot(data=totalRisk, x="score", y="risk", color="darkblue")
+    plt.ylabel('Count')
+    top_bar = patches.Patch(color='darkblue', label='Risk = Yes')
+    bottom_bar = patches.Patch(color='lightblue', label='Risk = No')
+    plt.legend(handles=[top_bar, bottom_bar])
+    plt.title(name)
+
+    totalRisk.to_csv(f"{saveDir}/riskAnalyses.csv")
     plt.savefig(f"{saveDir}/riskAnalyses_plot.png")
     plt.close()

@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn import ensemble, impute, linear_model, model_selection, neural_network, preprocessing, svm, metrics, neighbors, preprocessing
+from sklearn import ensemble, impute, linear_model, model_selection, neural_network, preprocessing, svm, metrics, neighbors, preprocessing, feature_selection
 from imblearn import FunctionSampler, pipeline, under_sampling, combine
 import sklearn
 from sklearn.compose import make_column_selector
@@ -24,7 +24,6 @@ fold = model_selection.StratifiedKFold(
     n_splits=splits, shuffle=True, random_state=randomState)
 target = 'f1'
 testSize = .2
-testSize = .20
 
 
 replacements = [
@@ -36,8 +35,8 @@ drops = [
 ]
 
 selections = [
-    preprocessing.FunctionTransformer(),
-    # tf.CorrelationSelection(threshold=0.05)
+    feature_selection.SelectPercentile(
+        tf.correlationScore, percentile=10)  # type: ignore
 ]
 
 scalers = [
@@ -45,7 +44,6 @@ scalers = [
     preprocessing.StandardScaler(),
 ]
 
-# FunctionSampler(validate=True),
 samplers = [
     under_sampling.RandomUnderSampler(),
     # combine.SMOTEENN()
@@ -104,5 +102,5 @@ def runCVRAllRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
         X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
-    ml.runRiskAnalyses(labelMethods, allPipelines, scoringConfig, target,
-                       testSize, fold, dataset, saveDir)
+    ml.runRiskAnalyses("cvrAllRisk", labelMethods, allPipelines, scoringConfig, target,
+                       testSize, fold, dataset, utils.nhanesCVRDeath, saveDir)

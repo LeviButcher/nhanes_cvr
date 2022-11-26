@@ -134,9 +134,9 @@ kusWithSamplerPipeline = pipeline.Pipeline([
 
 allPipelines = [
     (noSamplingPipeline, noSamplingConf),
-    # (samplerPipeline, samplerConf),
-    # (kusPipeline, kusPipelineConf),
-    # (kusWithSamplerPipeline, kusWithSamplerPipelineConf),
+    (samplerPipeline, samplerConf),
+    (kusPipeline, kusPipelineConf),
+    (kusWithSamplerPipeline, kusWithSamplerPipelineConf),
 ]
 
 labelMethods = [
@@ -155,5 +155,5 @@ def runHypertensionRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
         X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
-    ml.runRiskAnalyses(labelMethods, allPipelines, scoringConfig, target,
-                       testSize, fold, dataset, saveDir)
+    ml.runRiskAnalyses("hypertensionAllRisk", labelMethods, allPipelines, scoringConfig, target,
+                       testSize, fold, dataset, utils.nhanesMortalityContributedDeath, saveDir)

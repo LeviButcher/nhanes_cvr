@@ -62,3 +62,4 @@ Selection = Union[feature_selection.SelectFwe,
                   feature_selection.VarianceThreshold, feature_selection.SelectPercentile]
 
 Folding = model_selection.StratifiedKFold
+GetRisk = Callable[[pd.DataFrame], pd.Series]
