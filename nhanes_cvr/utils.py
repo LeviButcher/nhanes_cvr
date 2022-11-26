@@ -167,7 +167,8 @@ def makeDirectoryIfNotExists(directory: str) -> bool:
 
 
 def get_nhanes_dataset() -> DF:
-    cacheDir = "../nhanse-dl/nhanes_cache"
+    # cacheDir = "../nhanse-dl/nhanes_cache"
+    cacheDir = "./nhanes_cache"
     years = types.allContinuousNHANES()
     NHANES_DATASET = download.readCacheNhanesYearsWithMortality(
         cacheDir, years)

@@ -154,3 +154,4 @@ cython_debug/
 data/
 .vscode
 pipeline_test
+nhanes_cache/
