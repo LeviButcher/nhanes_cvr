@@ -96,11 +96,12 @@ def runCVRAllRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
 
     for n, f in labelMethods:
         X, Y = f(dataset)
+        print(X.shape)
         utils.makeDirectoryIfNotExists(f"{saveDir}/{n}")
         X.describe().to_csv(f"{saveDir}/{n}/dataset_info.csv")
-        Y.value_counts(normalize=True).to_csv(f"{saveDir}/{n}/label_info.csv")
+        Y.value_counts(normalize=False).to_csv(f"{saveDir}/{n}/label_info.csv")
         X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
-    ml.runRiskAnalyses("cvrAllRisk", labelMethods, allPipelines, scoringConfig, target,
-                       testSize, fold, dataset, utils.nhanesCVRDeath, saveDir)
+    # ml.runRiskAnalyses("cvrAllRisk", labelMethods, allPipelines, scoringConfig, target,
+    #                    testSize, fold, dataset, utils.nhanesCVRDeath, saveDir)

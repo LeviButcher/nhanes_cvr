@@ -15,17 +15,10 @@ dataset.dtypes.to_csv(f"{saveDir}/feature_types.csv")
 # remove any unparsed features
 dataset = dataset.select_dtypes(exclude=['object'])
 
-
 # Risk Analyses Runs
 
 # cvrAll.runCVRAllRiskAnalyses(dataset, f"{saveDir}/cvrAll")
 hypertenPaper.runHypertensionRiskAnalyses(dataset, f"{saveDir}/hypertenPaper")
-# cvrHandpicked.runCVRHandpickedRiskAnalyses(dataset, f"{saveDir}/cvrHandpicked")
-
-# TODO Message Dr.A clarifying method
-# Doing last if time
-# TODO Fix testResult plot and ConfusionMatrix plot
-# TODO set up outputting choosen features for a bestModel within a labeller
 
 # Two Issues
 # Can't Do handpicked because inbedded within dataframe - needs pandas column

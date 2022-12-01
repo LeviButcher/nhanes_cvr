@@ -35,11 +35,12 @@ def trainForTopFittingParams(cvSearch: CVSearch, target: str,
         .head(modelsToUse)\
         .loc[:, "params"]
 
-    return [getNewModel().set_params(**pc).fit(X, Y)  # type: ignore
+    return [getNewModel().set_params(**copy.deepcopy(pc)).fit(X, Y)  # type: ignore
             for pc in paramsToUse]
 
 
-def evaluateModel(pipeline: PipeLine, scoring: Scoring, X: DF, Y: pd.Series) -> CVTestDF:
+def evaluateModel(namedPipeline: Tuple[str, PipeLine], scoring: Scoring, X: DF, Y: pd.Series) -> CVTestDF:
+    name, pipeline = namedPipeline
     scores = [s(pipeline, X, Y) for (_, s) in scoring.items()]
     scoreNames = scoring.keys()
 
@@ -52,13 +53,14 @@ def evaluateModel(pipeline: PipeLine, scoring: Scoring, X: DF, Y: pd.Series) -> 
     predictedY = pipeline.predict(X)
     tn, fp, fn, tp = metrics.confusion_matrix(Y, predictedY).ravel()
 
-    cols = [*pipelineSteps, *scoreNames, 'tn', 'fp', 'fn', 'tp', 'params']
-    record = [*pipelineValues, *scores, tn, fp, fn, tp, params]
+    cols = [*pipelineSteps, *scoreNames, 'tn',
+            'fp', 'fn', 'tp', 'params', 'pipeline']
+    record = [*pipelineValues, *scores, tn, fp, fn, tp, params, name]
 
     return CVTestDF(DF([record], columns=cols))
 
 
-def evaluateAllModels(models: List[PipeLine], scoring: Scoring, X: DF, Y: pd.Series) -> CVTestDF:
+def evaluateAllModels(models: List[Tuple[str, PipeLine]], scoring: Scoring, X: DF, Y: pd.Series) -> CVTestDF:
     allTestRes = [evaluateModel(m, scoring, X, Y) for m in models]
     df = pd.concat(allTestRes, ignore_index=True)
     return CVTestDF(df)
@@ -75,11 +77,11 @@ def trainTestProcess(cvModels: List[PipeLineCV], scoring: Scoring, target: str,
     utils.makeDirectoryIfNotExists(saveDir)
     saveDir = f"{saveDir}/"
 
-    cvSearches = [randomSearchCV(m, c, scoring, cv, trainX, trainY)
-                  for m, c in cvModels]
+    cvSearches = [(n, randomSearchCV(m, c, scoring, cv, trainX, trainY))
+                  for n, m, c in cvModels]
 
-    trainedModels = [p
-                     for cvs in cvSearches
+    trainedModels = [(n, p)
+                     for n, cvs in cvSearches
                      for p in trainForTopFittingParams(cvs, target, TOP_MODELS_TO_USE, trainX, trainY)]
 
     trainResults = utils.buildDataFrameOfResults(cvSearches)
@@ -96,7 +98,7 @@ def trainTestProcess(cvModels: List[PipeLineCV], scoring: Scoring, target: str,
     #     bestTestModel[:-1].n_features_in_)
     # bestFeatures.to_csv(f"{saveDir}chosen_features.csv")
 
-    return bestTestModel
+    return bestTestModel[1]
 
 
 def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scoring: Scoring,

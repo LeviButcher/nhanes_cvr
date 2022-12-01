@@ -56,6 +56,7 @@ underSamples = [
     under_sampling.ClusterCentroids(),
 ]
 
+
 overSamplers = [
     over_sampling.RandomOverSampler(),
     over_sampling.SMOTE(),
@@ -133,10 +134,10 @@ kusWithSamplerPipeline = pipeline.Pipeline([
 
 
 allPipelines = [
-    (noSamplingPipeline, noSamplingConf),
-    (samplerPipeline, samplerConf),
-    (kusPipeline, kusPipelineConf),
-    (kusWithSamplerPipeline, kusWithSamplerPipelineConf),
+    ("noSampling", noSamplingPipeline, noSamplingConf),
+    ("withSampling", samplerPipeline, samplerConf),
+    ("kus", kusPipeline, kusPipelineConf),
+    ("kusWithSampling", kusWithSamplerPipeline, kusWithSamplerPipelineConf),
 ]
 
 labelMethods = [
@@ -151,9 +152,9 @@ def runHypertensionRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
         X, Y = f(dataset)
         utils.makeDirectoryIfNotExists(f"{saveDir}/{n}")
         X.describe().to_csv(f"{saveDir}/{n}/dataset_info.csv")
-        Y.value_counts(normalize=True).to_csv(f"{saveDir}/{n}/label_info.csv")
+        Y.value_counts().to_csv(f"{saveDir}/{n}/label_info.csv")
         X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
-    ml.runRiskAnalyses("hypertensionAllRisk", labelMethods, allPipelines, scoringConfig, target,
-                       testSize, fold, dataset, utils.nhanesMortalityContributedDeath, saveDir)
+    ml.runRiskAnalyses("hypertensionAllRisk", labelMethods, allPipelines, scoringConfig,
+                       target, testSize, fold, dataset, utils.nhanesMortalityContributedDeath, saveDir)

@@ -30,7 +30,7 @@ Scaling = Union[preprocessing.StandardScaler, preprocessing.MinMaxScaler]
 
 PipeLine = imblearn.pipeline.Pipeline
 PipeLinConf = Dict
-PipeLineCV = Tuple[PipeLine, PipeLinConf]
+PipeLineCV = Tuple[str, PipeLine, PipeLinConf]
 
 
 Fold = model_selection.StratifiedKFold

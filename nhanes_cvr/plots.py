@@ -1,6 +1,6 @@
 import pandas as pd
 from sklearn import metrics
-from typing import List
+from typing import Hashable, Iterable, List
 import matplotlib.pyplot as plt
 import seaborn as sns
 from nhanes_cvr.types import *
@@ -39,14 +39,11 @@ def plotConfusionMatrix(results: CVTestDF, title: str, savePath: str):
     plt.close()
 
 
-def plotPrecisionRecallForModels(models: List[PipeLine], X: pd.DataFrame, Y: pd.Series, savePath: str):
+def plotPrecisionRecallForModels(models: Iterable[Tuple[Hashable, PipeLine]], X: pd.DataFrame, Y: pd.Series, savePath: str):
     ax = plt.gca()
-    for m in models:
-        modelName = m.named_steps.get('model')
-        scalerName = m.named_steps.get('scaling')
-        name = f"{modelName} - {scalerName}"
+    for i, m in models:
         metrics.PrecisionRecallDisplay.from_estimator(
-            m, X, Y, ax=ax, name=name)
+            m, X, Y, ax=ax, name=f"best trained #{i}")
 
     ax.set_title("precision recall curve")
     handles, labels = ax.get_legend_handles_labels()
@@ -56,14 +53,11 @@ def plotPrecisionRecallForModels(models: List[PipeLine], X: pd.DataFrame, Y: pd.
     plt.close()
 
 
-def plotROCCurve(models: List[PipeLine], X: pd.DataFrame, Y: pd.Series, savePath: str):
+def plotROCCurve(models: Iterable[Tuple[Hashable, PipeLine]], X: pd.DataFrame, Y: pd.Series, savePath: str):
     _, ax = plt.subplots(1, sharex=True, sharey=True)
-    for m in models:
-        modelName = m.named_steps.get('model')
-        scalerName = m.named_steps.get('scaling')
-        name = f"{modelName} - {scalerName}"
+    for i, m in models:
         metrics.RocCurveDisplay.from_estimator(
-            m, X, Y, ax=ax, name=name)
+            m, X, Y, ax=ax, name=f"best trained #{i}")
 
     plt.title("roc curve")
     handles, labels = ax.get_legend_handles_labels()  # type: ignore
@@ -78,23 +72,26 @@ def getBestF1ByModels(res: Union[CVTestDF, CVTestDF]):
     return res.loc[best, :]
 
 
-def runAllPlotting(trainResults: CVTrainDF, testResults: CVTestDF, bestModels: List[PipeLine],
+def runAllPlotting(trainResults: CVTrainDF, testResults: CVTestDF, bestModels: List[Tuple[str, PipeLine]],
                    trainX: pd.DataFrame, trainY: pd.Series, testX: pd.DataFrame, testY: pd.Series,
                    scoring: Scoring, saveDir: str):
 
     trainResults.to_csv(f"{saveDir}train_results.csv")
 
     # Training Plots
-
-    plotPrecisionRecallForModels(
-        bestModels, trainX, trainY, f"{saveDir}train_precision_recall")
-    plotROCCurve(bestModels, trainX, trainY, f"{saveDir}train_roc_curve")
+    bestModelsDF = pd.DataFrame(bestModels, columns=["name", "pipeline"])
+    for n, df in bestModelsDF.groupby(by="name"):
+        plotPrecisionRecallForModels(
+            df.pipeline.items(), trainX, trainY, f"{saveDir}{n}_train_precision_recall")
+        plotROCCurve(df.pipeline.items(), trainX, trainY,
+                     f"{saveDir}{n}_train_roc_curve")
 
     # Test Plots
-
-    plotPrecisionRecallForModels(
-        bestModels, testX, testY, f"{saveDir}test_precision_recall")
-    plotROCCurve(bestModels, testX, testY, f"{saveDir}test_roc_curve")
+    for n, df in bestModelsDF.groupby(by="name"):
+        plotPrecisionRecallForModels(
+            df.pipeline.items(), testX, testY, f"{saveDir}{n}_test_precision_recall")
+        plotROCCurve(df.pipeline.items(), testX, testY,
+                     f"{saveDir}{n}_test_roc_curve")
     # plotTestResults(testResults, scoring,
     #                 f"{saveDir} - test scores", f"{saveDir}test_scores")
 

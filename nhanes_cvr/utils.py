@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import reduce
-from typing import List, TypeVar
+from typing import List, Tuple, TypeVar
 import numpy as np
 import pandas as pd
 from nhanes_dl import download, types
@@ -195,14 +195,16 @@ def get_nhanes_dataset() -> DF:
     return dataset
 
 
-def buildDataFrameOfResult(cvSearch: CVSearch) -> CVTrainDF:
-    res = pd.DataFrame(cvSearch.cv_results_)
+def buildDataFrameOfResult(cvSearch: Tuple[str, CVSearch]) -> CVTrainDF:
+    n, cv = cvSearch
+    res = pd.DataFrame(cv.cv_results_).assign(pipeline=n)
     return CVTrainDF(res)
 
 
-def buildDataFrameOfResults(cvSearches: List[CVSearch]) -> CVTrainDF:
+def buildDataFrameOfResults(cvSearches: List[Tuple[str, CVSearch]]) -> CVTrainDF:
     res = [buildDataFrameOfResult(cv) for cv in cvSearches]
-    return CVTrainDF(pd.concat(res, ignore_index=True))
+    df = pd.concat(res, ignore_index=True)
+    return CVTrainDF(df)
 
 
 def concatString(xs: List[str]) -> str:
