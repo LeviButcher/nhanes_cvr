@@ -17,8 +17,8 @@ dataset = dataset.select_dtypes(exclude=['object'])
 
 # Risk Analyses Runs
 
-# cvrAll.runCVRAllRiskAnalyses(dataset, f"{saveDir}/cvrAll")
-hypertenPaper.runHypertensionRiskAnalyses(dataset, f"{saveDir}/hypertenPaper")
+cvrAll.runCVRAllRiskAnalyses(dataset, f"{saveDir}/cvrAll")
+# hypertenPaper.runHypertensionRiskAnalyses(dataset, f"{saveDir}/hypertenPaper")
 
 # Two Issues
 # Can't Do handpicked because inbedded within dataframe - needs pandas column

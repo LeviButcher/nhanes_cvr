@@ -144,6 +144,11 @@ labelMethods = [
     ("hypertension_paper", utils.nhanesToHypertensionPaperSet),
 ]
 
+getRiskFunctions = [
+    ("cvrDeath", utils.nhanesCVRDeath),
+    ("heartFailure", utils.nhanesHeartFailure),
+]
+
 
 def runHypertensionRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
     utils.makeDirectoryIfNotExists(f"{saveDir}")
@@ -157,4 +162,4 @@ def runHypertensionRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
 
     # Turn into run risk analyses
     ml.runRiskAnalyses("hypertensionAllRisk", labelMethods, allPipelines, scoringConfig,
-                       target, testSize, fold, dataset, utils.nhanesMortalityContributedDeath, saveDir)
+                       target, testSize, fold, dataset, getRiskFunctions, saveDir)

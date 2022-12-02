@@ -60,34 +60,6 @@ class DropTransformer(BaseEstimator, TransformerMixin):
         X = transform_to_dataframe(X)
         return X.loc[:, self.colsToKeep]
 
-# Something is wrong with this
-# class CorrelationSelection(BaseEstimator, TransformerMixin):
-#     """
-#     Correlation Selection
-
-#     Selects the features that are greater then or above a correlation threshold to the Y
-#     """
-
-#     def __init__(self, threshold=0.05) -> None:
-#         self.threshold = threshold
-#         super().__init__()
-
-#     # May need to transform to dataframe
-#     def fit(self, X, y):
-#         X = transform_to_dataframe(X)
-#         y = transform_to_series(y)
-
-#         corr = X.corrwith(y).abs()
-#         self.colsToKeep = (corr >= self.threshold).to_list()
-
-#         assert (any(self.colsToKeep)), "At least 1 column has to be selected"
-#         return self
-
-#     def transform(self, X, y=None):
-#         X = transform_to_dataframe(X)
-#         X = X.loc[:, self.colsToKeep]
-#         return X
-
 
 def correlationScore(X, y):
     X = transform_to_dataframe(X)

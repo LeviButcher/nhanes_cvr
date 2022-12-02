@@ -80,7 +80,7 @@ samplerPipeline = pipeline.Pipeline([
 ])
 
 allPipelines = [
-    (samplerPipeline, samplerConf)
+    ("normal", samplerPipeline, samplerConf)
 ]
 
 labelMethods = [
@@ -88,6 +88,11 @@ labelMethods = [
     ("cardiovascular_codebook", utils.nhanesToCardiovascularCodeBookSet),
     ("questionnaire", utils.nhanesToQuestionnaireSet),
     ("cvr_death", utils.nhanesToMortalitySet),
+]
+
+getRiskFunctions = [
+    ("cvrDeath", utils.nhanesCVRDeath),
+    ("heartFailure", utils.nhanesHeartFailure),
 ]
 
 
@@ -103,5 +108,5 @@ def runCVRAllRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
         X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
-    # ml.runRiskAnalyses("cvrAllRisk", labelMethods, allPipelines, scoringConfig, target,
-    #                    testSize, fold, dataset, utils.nhanesCVRDeath, saveDir)
+    ml.runRiskAnalyses("cvrAllRisk", labelMethods, allPipelines, scoringConfig,
+                       target, testSize, fold, dataset, getRiskFunctions, saveDir)

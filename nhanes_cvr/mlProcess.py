@@ -129,7 +129,7 @@ def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scori
 
 def runRiskAnalyses(name: str, labelMethods: NamedLabellerList, pipelines: List[PipeLineCV],
                     scoringConfig: Scoring, target: str,
-                    testSize: float, fold: Fold, dataset: DF, riskFunction: GetRisk, saveDir: str):
+                    testSize: float, fold: Fold, dataset: DF, riskFunctions: List[Tuple[str, GetRisk]], saveDir: str):
     # May need to stratify here
     coreDataset, riskDataset = model_selection.train_test_split(
         dataset, test_size=.1, random_state=randomState)
@@ -148,22 +148,23 @@ def runRiskAnalyses(name: str, labelMethods: NamedLabellerList, pipelines: List[
 
     riskScore = pd.DataFrame(riskPredictions).sum(axis=0)
 
-    riskLabel = riskFunction(riskDataset)
-    df = pd.DataFrame({'score': riskScore.to_list(),
-                      'risk': riskLabel.to_list()})
+    for rName, rf in riskFunctions:
+        riskLabel = rf(riskDataset)
+        df = pd.DataFrame({'score': riskScore.to_list(),
+                           'risk': riskLabel.to_list()})
 
-    totalScore = df.score.value_counts()
-    totalRisk = df.groupby('score').sum().reset_index()
-    totalRisk = totalRisk.assign(total=totalScore)
+        totalScore = df.score.value_counts()
+        totalRisk = df.groupby('score').sum().reset_index()
+        totalRisk = totalRisk.assign(total=totalScore)
 
-    sns.barplot(data=totalRisk, x="score", y="total", color="lightblue")
-    sns.barplot(data=totalRisk, x="score", y="risk", color="darkblue")
-    plt.ylabel('Count')
-    top_bar = patches.Patch(color='darkblue', label='Risk = Yes')
-    bottom_bar = patches.Patch(color='lightblue', label='Risk = No')
-    plt.legend(handles=[top_bar, bottom_bar])
-    plt.title(name)
+        sns.barplot(data=totalRisk, x="score", y="total", color="lightblue")
+        sns.barplot(data=totalRisk, x="score", y="risk", color="darkblue")
+        plt.ylabel('Count')
+        top_bar = patches.Patch(color='darkblue', label='Risk = Yes')
+        bottom_bar = patches.Patch(color='lightblue', label='Risk = No')
+        plt.legend(handles=[top_bar, bottom_bar])
+        plt.title(f"{name}_{rName}")
 
-    totalRisk.to_csv(f"{saveDir}/riskAnalyses.csv")
-    plt.savefig(f"{saveDir}/riskAnalyses_plot.png")
-    plt.close()
+        totalRisk.to_csv(f"{saveDir}/riskAnalyses_{rName}.csv")
+        plt.savefig(f"{saveDir}/riskAnalyses_plot_{rName}.png")
+        plt.close()

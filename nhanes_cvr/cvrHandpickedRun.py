@@ -36,7 +36,8 @@ drops = [
 ]
 
 selections = [
-    preprocessing.FunctionTransformer(tf.handpickedSelector)
+    # preprocessing.FunctionTransformer(tf.handpickedSelector),
+    preprocessing.FunctionTransformer()
 ]
 
 scalers = [
@@ -79,7 +80,7 @@ samplerPipeline = pipeline.Pipeline([
 ])
 
 allPipelines = [
-    (samplerPipeline, samplerConf)
+    ("normal", samplerPipeline, samplerConf)
 ]
 
 labelMethods = [
@@ -101,5 +102,5 @@ def runCVRHandpickedRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
         X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
-    ml.runRiskAnalyses("cvrHandpickedRisk", labelMethods, allPipelines, scoringConfig, target,
-                       testSize, fold, dataset, utils.nhanesCVRDeath, saveDir)
+    ml.runRiskAnalyses("cvrHandpickedRisk", labelMethods, allPipelines, scoringConfig,
+                       target, testSize, fold, dataset, utils.nhanesCVRDeath, saveDir)

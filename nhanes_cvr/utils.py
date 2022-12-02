@@ -55,6 +55,14 @@ def nhanesToQuestionnaireSet(nhanes_dataset: DF) -> XYPair:
     return (X, Y)
 
 
+def nhanesHeartFailure(nhanes_dataset: DF) -> pd.Series:
+    hadStroke = nhanes_dataset.MCQ160F == 1  # Stroke
+    hadCoronary = nhanes_dataset.MCQ160C == 1  # Coronary Heart Disease
+    hadCongestiveHeartFailure = nhanes_dataset.MCQ160B == 1  # Congestive Heart Failure
+    hadHeartAttack = nhanes_dataset.MCQ160E == 1  # Heart Attack
+    return hadStroke | hadCoronary | hadCongestiveHeartFailure | hadHeartAttack
+
+
 def nhanesCVRDeath(dataset: DF) -> pd.Series:
     # Do not need to check if person has died
     leadingCause = dataset.UCOD_LEADING.apply(toCauseOfDeath)  # type: ignore
