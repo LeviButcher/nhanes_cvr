@@ -8,7 +8,7 @@ from typing import List
 import pandas as pd
 from toolz import curry
 from nhanes_cvr.transformers import iqrBinaryClassesRemoval
-from nhanes_cvr.types import DF, CVSearch, CVTrainDF, XYPair
+from nhanes_cvr.types import DF, CVSearch, CVTrainDF, GridSearchDF, XYPair
 
 
 # Different meanings of ucod_leading - https://www.cdc.gov/nchs/data/datalinkage/public-use-2015-linked-mortality-files-data-dictionary.pdf
@@ -41,7 +41,7 @@ def toCauseOfDeath(x):
     return LeadingCauseOfDeath(int(x))
 
 
-def nhanesToQuestionnaireSet(nhanes_dataset: DF) -> XYPair:
+def nhanesToCardiovascularConditions(nhanes_dataset: DF) -> XYPair:
     X = nhanes_dataset.drop(columns=["MCQ160F", "MCQ160C", "MCQ160B", "MCQ160E"]) \
         .drop(columns=download.getMortalityColumns()) \
         .select_dtypes(exclude=['object'])
@@ -93,7 +93,7 @@ def nhanesToMortalitySet(nhanes_dataset: DF) -> XYPair:
     return (X, Y)
 
 
-def nhanesToCardiovascularCodeBookSet(nhanes_dataset: DF) -> XYPair:
+def nhanesToCardiovascularSymptoms(nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.drop(columns=download.getMortalityColumns())
     discomfortInChest = (dataset.CDQ001 == 1)
     notReliefByStanding = (dataset.CDQ005 == 2)
@@ -113,7 +113,7 @@ def nhanesToCardiovascularCodeBookSet(nhanes_dataset: DF) -> XYPair:
 @curry
 def nhanesToLabSet(threshold: int, nhanes_dataset: DF) -> XYPair:
     dataset = nhanes_dataset.drop(
-        columns=download.getMortalityColumns())  # type: ignore
+        columns=download.getMortalityColumns())
     highChol = (dataset.LBXTC > 239)
     highLDL = (dataset.LBDLDL > 130)
     lowHDL = (dataset.LBDHDD < 40)
@@ -154,6 +154,17 @@ def nhanesToHypertensionPaperSet(nhanes_dataset: DF) -> XYPair:
     X = nhanes_dataset.loc[:, cols]
 
     return iqrBinaryClassesRemoval(X, y)
+
+
+def nhanesToHypertensionContribDeathSet(nhanes_dataset: DF) -> XYPair:
+    cols = ["RIAGENDR", "RIDAGEYR", "RIDRETH1",
+            "BMXBMI", "DIQ010", "SMQ020", "KIQ022"]
+    dataset = nhanes_dataset.loc[nhanes_dataset.ELIGSTAT == 1, :]
+    dataset = dataset.loc[dataset.MORTSTAT == 1, :]
+    Y = dataset.HYPERTEN.fillna(0)
+    X = dataset.loc[:, cols]
+
+    return X, Y
 
 
 def filterNhanesDatasetByReleaseYears(nhanes_years: List[int], nhanes_dataset: DF) -> DF:
@@ -203,16 +214,16 @@ def get_nhanes_dataset() -> DF:
     return dataset
 
 
-def buildDataFrameOfResult(cvSearch: Tuple[str, CVSearch]) -> CVTrainDF:
+def buildDataFrameOfResult(cvSearch: Tuple[str, CVSearch]) -> GridSearchDF:
     n, cv = cvSearch
     res = pd.DataFrame(cv.cv_results_).assign(pipeline=n)
-    return CVTrainDF(res)
+    return GridSearchDF(res)
 
 
-def buildDataFrameOfResults(cvSearches: List[Tuple[str, CVSearch]]) -> CVTrainDF:
+def buildDataFrameOfResults(cvSearches: List[Tuple[str, CVSearch]]) -> GridSearchDF:
     res = [buildDataFrameOfResult(cv) for cv in cvSearches]
     df = pd.concat(res, ignore_index=True)
-    return CVTrainDF(df)
+    return GridSearchDF(df)
 
 
 def concatString(xs: List[str]) -> str:

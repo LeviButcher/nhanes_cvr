@@ -1,3 +1,4 @@
+from datetime import datetime
 from matplotlib import patches
 import pandas as pd
 from sklearn import model_selection, metrics
@@ -23,7 +24,7 @@ def randomSearchCV(pipeline: PipeLine, config: PipeLinConf, scoring: Scoring,
     config = copy.deepcopy(config)
     clf = model_selection.GridSearchCV(
         estimator=pipeline, param_grid=config, scoring=scoring,
-        n_jobs=N_JOBS, cv=cv, return_train_score=False, refit=False)
+        n_jobs=N_JOBS, cv=cv, return_train_score=True, refit=False)
     return clf.fit(X, Y)
 
 
@@ -39,7 +40,7 @@ def trainForTopFittingParams(cvSearch: CVSearch, target: str,
             for pc in paramsToUse]
 
 
-def evaluateModel(namedPipeline: Tuple[str, PipeLine], scoring: Scoring, X: DF, Y: pd.Series) -> CVTestDF:
+def evaluateModel(namedPipeline: Tuple[str, PipeLine], scoring: Scoring, X: DF, Y: pd.Series) -> ScoreDF:
     name, pipeline = namedPipeline
     scores = [s(pipeline, X, Y) for (_, s) in scoring.items()]
     scoreNames = scoring.keys()
@@ -57,13 +58,13 @@ def evaluateModel(namedPipeline: Tuple[str, PipeLine], scoring: Scoring, X: DF, 
             'fp', 'fn', 'tp', 'params', 'pipeline']
     record = [*pipelineValues, *scores, tn, fp, fn, tp, params, name]
 
-    return CVTestDF(DF([record], columns=cols))
+    return ScoreDF(DF([record], columns=cols))
 
 
-def evaluateAllModels(models: List[Tuple[str, PipeLine]], scoring: Scoring, X: DF, Y: pd.Series) -> CVTestDF:
+def evaluateAllModels(models: List[Tuple[str, PipeLine]], scoring: Scoring, X: DF, Y: pd.Series) -> ScoreDF:
     allTestRes = [evaluateModel(m, scoring, X, Y) for m in models]
     df = pd.concat(allTestRes, ignore_index=True)
-    return CVTestDF(df)
+    return ScoreDF(df)
 
 
 """
@@ -75,7 +76,6 @@ def trainTestProcess(cvModels: List[PipeLineCV], scoring: Scoring, target: str,
                      cv: Folding, trainX: DF, trainY: pd.Series,
                      testX: DF, testY: pd.Series, saveDir: str) -> PipeLine:
     utils.makeDirectoryIfNotExists(saveDir)
-    saveDir = f"{saveDir}/"
 
     cvSearches = [(n, randomSearchCV(m, c, scoring, cv, trainX, trainY))
                   for n, m, c in cvModels]
@@ -84,31 +84,34 @@ def trainTestProcess(cvModels: List[PipeLineCV], scoring: Scoring, target: str,
                      for n, cvs in cvSearches
                      for p in trainForTopFittingParams(cvs, target, TOP_MODELS_TO_USE, trainX, trainY)]
 
-    trainResults = utils.buildDataFrameOfResults(cvSearches)
+    gsResults = utils.buildDataFrameOfResults(cvSearches)
+    trainResults = evaluateAllModels(trainedModels, scoring, trainX, trainY)
     testResults = evaluateAllModels(trainedModels, scoring, testX, testY)
 
     # May need checked
     bestIdx: int = testResults['f1'].idxmax()  # type: ignore
     bestTestModel = trainedModels[bestIdx]
 
-    plots.runAllPlotting(trainResults, testResults, trainedModels,
+    plots.runAllPlotting(gsResults, trainResults, testResults, trainedModels,
                          trainX, trainY, testX, testY, scoring, saveDir)
-
-    # bestFeatures = pd.Series(
-    #     bestTestModel[:-1].n_features_in_)
-    # bestFeatures.to_csv(f"{saveDir}chosen_features.csv")
 
     return bestTestModel[1]
 
 
 def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scoring: Scoring,
                 target: str, testSize: float, cv: Fold, dataset: DF, saveDir: str) -> PipeLine:
+    start = datetime.now()
     name, labeller = namedLabeller
     (X, Y) = labeller(dataset)
 
     utils.makeDirectoryIfNotExists(saveDir)
-    saveDir = f"{saveDir}/{name}"
+    saveDir = f"{saveDir}/{name}/"
     utils.makeDirectoryIfNotExists(saveDir)
+
+    X.describe().to_csv(f"{saveDir}dataset_info.csv")
+    Y.value_counts(normalize=False).to_csv(f"{saveDir}label_info.csv")
+    X.dtypes.to_csv(f"{saveDir}dataset_types.csv")
+    plots.correlationAnalysis(X, Y, saveDir)
 
     trainX, testX, trainY, testY = model_selection.train_test_split(
         X, Y, test_size=testSize, random_state=randomState, stratify=Y)
@@ -117,12 +120,17 @@ def runLabeller(namedLabeller: NamedLabeller, pipelines: List[PipeLineCV], scori
     testX = DF(testX)
     trainY = pd.Series(trainY)
     testY = pd.Series(testY)
-    print(trainX.shape)
-    print(testX.shape)
 
     bestModel = trainTestProcess(
         pipelines, scoring, target, cv,
         trainX, trainY, testX, testY, saveDir)
+
+    # Calc chosen features here
+    plots.saveChosenFeatures(bestModel, trainX, saveDir)
+    end = datetime.now()
+    elapse = end - start
+    time = pd.DataFrame({name: [elapse]})
+    time.to_csv(f"{saveDir}total_time.csv")
 
     return bestModel
 

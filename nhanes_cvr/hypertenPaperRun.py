@@ -141,24 +141,18 @@ allPipelines = [
 ]
 
 labelMethods = [
-    ("hypertension_paper", utils.nhanesToHypertensionPaperSet),
+    ("mean_systolic_thresh", utils.nhanesToHypertensionPaperSet),
+    ("hypertension_contrib_death", utils.nhanesToHypertensionContribDeathSet)
 ]
 
 getRiskFunctions = [
     ("cvrDeath", utils.nhanesCVRDeath),
-    ("heartFailure", utils.nhanesHeartFailure),
+    ("hypertensionContributedDeath", utils.nhanesHeartFailure),
 ]
 
 
 def runHypertensionRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
     utils.makeDirectoryIfNotExists(f"{saveDir}")
-
-    for n, f in labelMethods:
-        X, Y = f(dataset)
-        utils.makeDirectoryIfNotExists(f"{saveDir}/{n}")
-        X.describe().to_csv(f"{saveDir}/{n}/dataset_info.csv")
-        Y.value_counts().to_csv(f"{saveDir}/{n}/label_info.csv")
-        X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
 
     # Turn into run risk analyses
     ml.runRiskAnalyses("hypertensionAllRisk", labelMethods, allPipelines, scoringConfig,

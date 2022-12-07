@@ -13,9 +13,10 @@ XYPair = Tuple[XSet, YSet]
 
 CVSearch = Union[model_selection.GridSearchCV,
                  model_selection.RandomizedSearchCV]
+GridSearchDF = NewType('GridSearchDF', pd.DataFrame)
 CVTrainDF = NewType('CVTrainDF', pd.DataFrame)
-CVTestDF = NewType('CVTestDF', pd.DataFrame)
-CVRes = Tuple[CVTrainDF, CVTestDF]
+ScoreDF = NewType('ScoreDF', pd.DataFrame)
+CVRes = Tuple[CVTrainDF, ScoreDF]
 LabellerTrainDF = NewType('LabellerTrainDF', pd.DataFrame)
 LabellerTestDF = NewType('LabellerTestDF', pd.DataFrame)
 LabellerRes = Tuple[LabellerTrainDF, LabellerTestDF]

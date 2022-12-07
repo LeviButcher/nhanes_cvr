@@ -3,12 +3,13 @@ from sklearn import metrics
 from typing import Hashable, Iterable, List
 import matplotlib.pyplot as plt
 import seaborn as sns
+from nhanes_cvr import transformers as tf
 from nhanes_cvr.types import *
 
 
-def plotTestResults(results: CVTestDF, scoringDict: Scoring, title: str, savePath: str):
+def plotTestResults(results: ScoreDF, scoringDict: Scoring, title: str, savePath: str):
     scoring = list(scoringDict.keys())
-    results = CVTestDF(results.astype(
+    results = ScoreDF(results.astype(
         {'model': 'string', 'samplers': 'string'}))
     # g = sns.PairGrid(results, x_vars="samplers", hue="scaling")
     g = sns.scatterplot(data=results, x="model", y=scoring)
@@ -19,7 +20,7 @@ def plotTestResults(results: CVTestDF, scoringDict: Scoring, title: str, savePat
     plt.close()
 
 
-def plotConfusionMatrix(results: CVTestDF, title: str, savePath: str):
+def plotConfusionMatrix(results: ScoreDF, title: str, savePath: str):
     g = sns.FacetGrid(results, row="model", col="scaling")
 
     # hackish way of getting heatmap drawn
@@ -67,16 +68,19 @@ def plotROCCurve(models: Iterable[Tuple[Hashable, PipeLine]], X: pd.DataFrame, Y
     plt.close()
 
 
-def getBestF1ByModels(res: Union[CVTestDF, CVTestDF]):
+def getBestF1ByModels(res: Union[ScoreDF, ScoreDF]):
     best = res.groupby("model")['f1'].idxmax()  # type: ignore
     return res.loc[best, :]
 
 
-def runAllPlotting(trainResults: CVTrainDF, testResults: CVTestDF, bestModels: List[Tuple[str, PipeLine]],
+def runAllPlotting(gsResults: GridSearchDF, trainResults: ScoreDF, testResults: ScoreDF, bestModels: List[Tuple[str, PipeLine]],
                    trainX: pd.DataFrame, trainY: pd.Series, testX: pd.DataFrame, testY: pd.Series,
                    scoring: Scoring, saveDir: str):
 
+    # Save CSVs
     trainResults.to_csv(f"{saveDir}train_results.csv")
+    gsResults.to_csv(f"{saveDir}gs_results.csv")
+    testResults.to_csv(f"{saveDir}test_results.csv")
 
     # Training Plots
     bestModelsDF = pd.DataFrame(bestModels, columns=["name", "pipeline"])
@@ -92,10 +96,24 @@ def runAllPlotting(trainResults: CVTrainDF, testResults: CVTestDF, bestModels: L
             df.pipeline.items(), testX, testY, f"{saveDir}{n}_test_precision_recall")
         plotROCCurve(df.pipeline.items(), testX, testY,
                      f"{saveDir}{n}_test_roc_curve")
-    # plotTestResults(testResults, scoring,
-    #                 f"{saveDir} - test scores", f"{saveDir}test_scores")
 
-    # plotConfusionMatrix(testResults, "test - CM",
-    #                     f"{saveDir}test_confusion_matrix")
 
-    testResults.to_csv(f"{saveDir}test_results.csv")
+def correlationAnalysis(X: pd.DataFrame, y: pd.Series, saveDir: str):
+    corr = X.corrwith(y).abs().sort_values(ascending=False)
+    marker = corr.quantile(q=.9)
+    res = corr[corr >= marker]
+
+    corr.to_csv(f"{saveDir}correlation_analysis.csv")
+    res.to_csv(f"{saveDir}correlation_10th_percentile.csv")
+
+
+def saveChosenFeatures(pipeline: PipeLine, trainX: pd.DataFrame, savePath: str):
+    # cols = trainX.columns
+    # scores = pipeline.named_steps['selection'].scores_
+    # print(pipeline.named_steps['selection'].feature_names_in_)
+    # res = pipeline.transform(trainX)
+    # res = pd.Series(scores, index=cols)
+    # print(res)
+
+    # bestFeatures.to_csv(f"{saveDir}chosen_features.csv")
+    return

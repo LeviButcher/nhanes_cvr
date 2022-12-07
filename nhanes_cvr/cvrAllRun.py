@@ -1,6 +1,6 @@
 import pandas as pd
 from sklearn import ensemble, impute, linear_model, model_selection, neural_network, preprocessing, svm, metrics, neighbors, preprocessing, feature_selection
-from imblearn import FunctionSampler, pipeline, under_sampling, combine
+from imblearn import FunctionSampler, pipeline, under_sampling, combine, over_sampling
 import sklearn
 from sklearn.compose import make_column_selector
 from nhanes_cvr import transformers as tf
@@ -36,7 +36,9 @@ drops = [
 
 selections = [
     feature_selection.SelectPercentile(
-        tf.correlationScore, percentile=10)  # type: ignore
+        tf.correlationScore, percentile=10),  # type: ignore
+    feature_selection.SelectFromModel(
+        svm.LinearSVC(C=0.01, penalty="l1", dual=False)),
 ]
 
 scalers = [
@@ -44,9 +46,14 @@ scalers = [
     preprocessing.StandardScaler(),
 ]
 
+
 samplers = [
     under_sampling.RandomUnderSampler(),
-    # combine.SMOTEENN()
+    under_sampling.ClusterCentroids(),
+    over_sampling.RandomOverSampler(),
+    over_sampling.SMOTE(),
+    combine.SMOTEENN(),
+    combine.SMOTETomek(),
 ]
 
 
@@ -84,29 +91,21 @@ allPipelines = [
 ]
 
 labelMethods = [
-    ("lab_thresh", utils.nhanesToLabSet(2)),
-    ("cardiovascular_codebook", utils.nhanesToCardiovascularCodeBookSet),
-    ("questionnaire", utils.nhanesToQuestionnaireSet),
-    ("cvr_death", utils.nhanesToMortalitySet),
+    ("Biomarkers", utils.nhanesToLabSet(2)),
+    ("Cardiovascular_Symptoms", utils.nhanesToCardiovascularSymptoms),
+    ("Cardiovascular_Conditions", utils.nhanesToCardiovascularConditions),
+    ("CVR_Death", utils.nhanesToMortalitySet),
 ]
 
 getRiskFunctions = [
-    ("cvrDeath", utils.nhanesCVRDeath),
-    ("heartFailure", utils.nhanesHeartFailure),
+    ("CVR_Death", utils.nhanesCVRDeath),
+    ("Cardiovascular_Conditions", utils.nhanesHeartFailure),
 ]
 
 
 def runCVRAllRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
     utils.makeDirectoryIfNotExists(f"{saveDir}")
 
-    for n, f in labelMethods:
-        X, Y = f(dataset)
-        print(X.shape)
-        utils.makeDirectoryIfNotExists(f"{saveDir}/{n}")
-        X.describe().to_csv(f"{saveDir}/{n}/dataset_info.csv")
-        Y.value_counts(normalize=False).to_csv(f"{saveDir}/{n}/label_info.csv")
-        X.dtypes.to_csv(f"{saveDir}/{n}/dataset_types.csv")
-
     # Turn into run risk analyses
-    ml.runRiskAnalyses("cvrAllRisk", labelMethods, allPipelines, scoringConfig,
+    ml.runRiskAnalyses("cvr_risk", labelMethods, allPipelines, scoringConfig,
                        target, testSize, fold, dataset, getRiskFunctions, saveDir)
