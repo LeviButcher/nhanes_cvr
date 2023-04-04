@@ -5,6 +5,8 @@ from sklearn_extra.cluster import KMedoids
 from nhanes_cvr import transformers as tf
 import nhanes_cvr.utils as utils
 import nhanes_cvr.mlProcess as ml
+import numpy as np
+from nhanes_cvr import plots
 
 
 # CONFIGURATION VARIABLES
@@ -142,11 +144,10 @@ allPipelines = [
 
 labelMethods = [
     ("mean_systolic_thresh", utils.nhanesToHypertensionPaperSet),
-    ("hypertension_contrib_death", utils.nhanesToHypertensionContribDeathSet)
+    # ("hypertension_contrib_death", utils.nhanesToHypertensionContribDeathSet)
 ]
 
 getRiskFunctions = [
-    ("cvrDeath", utils.nhanesCVRDeath),
     ("hypertensionContributedDeath", utils.nhanesHeartFailure),
 ]
 
@@ -154,6 +155,16 @@ getRiskFunctions = [
 def runHypertensionRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
     utils.makeDirectoryIfNotExists(f"{saveDir}")
 
-    # Turn into run risk analyses
-    ml.runRiskAnalyses("hypertensionAllRisk", labelMethods, allPipelines, scoringConfig,
-                       target, testSize, fold, dataset, getRiskFunctions, saveDir)
+    for n, l in labelMethods:
+        X, Y = l(dataset)
+
+        imputer = impute.SimpleImputer(
+            missing_values=pd.NA, strategy='mean', keep_empty_features=True)
+        newX = imputer.fit_transform(X)
+        X = pd.DataFrame(newX, columns=X.columns)
+
+        plots.correlationAnalysis(X, Y, f"{saveDir}/{n}/")  # type: ignore
+
+    # # Turn into run risk analyses
+    # ml.runRiskAnalyses("hypertensionAllRisk", labelMethods, allPipelines, scoringConfig,
+    #                    target, testSize, fold, dataset, getRiskFunctions, saveDir)

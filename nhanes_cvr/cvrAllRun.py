@@ -1,3 +1,5 @@
+import numpy as np
+from nhanes_cvr import plots
 import pandas as pd
 from sklearn import ensemble, impute, linear_model, model_selection, neural_network, preprocessing, svm, metrics, neighbors, preprocessing, feature_selection
 from imblearn import FunctionSampler, pipeline, under_sampling, combine, over_sampling
@@ -106,6 +108,18 @@ getRiskFunctions = [
 def runCVRAllRiskAnalyses(dataset: pd.DataFrame, saveDir: str):
     utils.makeDirectoryIfNotExists(f"{saveDir}")
 
+    for n, l in labelMethods:
+        X, Y = l(dataset)
+
+        # mean = X.mean()
+        # X = X.fillna(mean)
+        imputer = impute.SimpleImputer(
+            missing_values=pd.NA, strategy='mean', keep_empty_features=True)
+        newX = imputer.fit_transform(X)
+        X = pd.DataFrame(newX, columns=X.columns)
+
+        plots.correlationAnalysis(X, Y, f"{saveDir}/{n}/")  # type: ignore
+
     # Turn into run risk analyses
-    ml.runRiskAnalyses("cvr_risk", labelMethods, allPipelines, scoringConfig,
-                       target, testSize, fold, dataset, getRiskFunctions, saveDir)
+    # ml.runRiskAnalyses("cvr_risk", labelMethods, allPipelines, scoringConfig,
+    #                    target, testSize, fold, dataset, getRiskFunctions, saveDir)
