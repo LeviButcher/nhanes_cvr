@@ -189,7 +189,7 @@ def get_nhanes_dataset() -> DF:
     # cacheDir = "../nhanse-dl/nhanes_cache"
     cacheDir = "./nhanes_cache"
     years = types.allContinuousNHANES()
-    NHANES_DATASET = download.readCacheNhanesYearsWithMortality(
+    NHANES_DATASET = download.readCacheOrDownloadAllCodebooksWithMortality(
         cacheDir, years)
 
     # Process NHANES
